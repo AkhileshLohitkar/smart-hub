@@ -1,0 +1,104 @@
+Design a smart AI-powered educational app that automatically generates PRINTABLE worksheets for school students, fully aligned with the official syllabus.
+
+⸻
+
+🎯 Core Purpose
+
+The app should analyze the complete syllabus of all major Indian education boards up to Class 10 and generate print-ready worksheets when the user specifies:
+	•	Class / Standard
+	•	Education Board (e.g., CBSE, ICSE, State Boards)
+	•	Subject
+	•	Chapter / Topic / Sub-topic
+
+⸻
+
+🧠 AI Intelligence Requirements
+	•	Accurately map the selected board + class + subject + topic to its official syllabus
+	•	Identify learning outcomes, difficulty level, and expected question patterns
+	•	Ensure no out-of-syllabus content
+	•	Adjust complexity based on:
+	•	Primary (Classes 1–5): simple, activity-based
+	•	Middle (Classes 6–8): conceptual + practice
+	•	Secondary (Classes 9–10): exam-oriented & application-based
+
+⸻
+
+📄 Printable Worksheet Output
+	•	Final output must be PRINT-READY
+	•	Supported formats:
+	•	PDF (primary)
+	•	High-resolution image (optional export)
+	•	Page settings:
+	•	A4 size
+	•	Proper margins for printing
+	•	Black & white friendly (optional colour mode)
+	•	Clear sections:
+	•	Header (Class, Subject, Topic, Name, Date)
+	•	Instructions
+	•	Questions
+	•	Space for answers
+
+⸻
+
+🎨 Design & Layout Guidelines
+	•	Classes 1–5
+	•	Large fonts
+	•	Simple icons and illustrations
+	•	Plenty of white space for writing
+	•	Classes 6–10
+	•	Clean, textbook-style layout
+	•	Tables, graphs, diagrams where required
+	•	Minimal colours, exam-friendly formatting
+
+The design must prioritize:
+	•	Readability
+	•	Ink efficiency
+	•	Classroom usability
+
+⸻
+
+📝 Question Design Rules
+	•	Question types based on subject and grade:
+	•	MCQs
+	•	Fill in the blanks
+	•	Match the following
+	•	Short & long answers
+	•	Diagram / data-based questions
+	•	Number of questions:
+	•	Adjustable (default: 5–15)
+	•	Language must follow board-style academic tone
+
+⸻
+
+⚙️ User Flow
+	1.	User selects:
+	•	Class
+	•	Board
+	•	Subject
+	•	Topic
+	2.	Optional settings:
+	•	Difficulty level
+	•	Worksheet length
+	•	Colour or black & white
+	3.	User clicks “Generate Printable Worksheet”
+	4.	App outputs a ready-to-print worksheet PDF
+
+⸻
+
+✨ Optional Advanced Features
+	•	Answer key (separate printable PDF)
+	•	Editable worksheets
+	•	School/teacher branding (logo, footer)
+	•	Language options (English / regional)
+	•	Bulk worksheet generation
+
+⸻
+
+🎯 Target Users
+	•	School teachers
+	•	Parents
+	•	Coaching institutes
+	•	Ed-tech platforms
+	•	Worksheet sellers & publishers
+
+The final experience should allow users to create professionally formatted, syllabus-accurate, printable worksheets in seconds, without any design or curriculum expertise.
