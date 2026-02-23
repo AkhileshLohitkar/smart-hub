@@ -1,18 +1,28 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, json, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+export const worksheets = pgTable("worksheets", {
+  id: serial("id").primaryKey(),
+  className: text("class_name").notNull(),
+  board: text("board").notNull(),
+  subject: text("subject").notNull(),
+  topic: text("topic").notNull(),
+  difficulty: text("difficulty").notNull().default("medium"),
+  length: integer("length").notNull().default(10),
+  colorMode: text("color_mode").notNull().default("bw"),
+  content: json("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+export const insertWorksheetSchema = createInsertSchema(worksheets).omit({ 
+  id: true, 
+  createdAt: true,
+  content: true 
 });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export type Worksheet = typeof worksheets.$inferSelect;
+export type InsertWorksheet = z.infer<typeof insertWorksheetSchema>;
+
+export type GenerateWorksheetRequest = InsertWorksheet;
+export type WorksheetResponse = Worksheet;
