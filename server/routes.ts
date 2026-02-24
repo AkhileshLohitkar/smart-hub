@@ -19,10 +19,11 @@ export async function registerRoutes(
     try {
       const input = api.worksheets.generate.input.parse(req.body);
       
-      const prompt = `Generate a printable educational worksheet with the following requirements:
+    const prompt = `Generate a printable educational worksheet with the following requirements:
 Class/Standard: ${input.className}
 Education Board: ${input.board}
 Subject: ${input.subject}
+Chapter: ${input.chapter || "Not specified"}
 Topic: ${input.topic}
 Difficulty: ${input.difficulty}
 Approximate Number of questions: ${input.length}
@@ -31,6 +32,13 @@ The output must be strictly in JSON format matching this structure:
 {
   "title": "Worksheet Title",
   "instructions": "General instructions for the student",
+  "graphics": [
+    {
+      "description": "A simple, child-friendly, colorful line-art or minimalist illustration related to the topic",
+      "position": "top-right" | "bottom-left" | "between-sections",
+      "altText": "Short description of the graphic"
+    }
+  ],
   "sections": [
     {
       "type": "mcq" | "fill_blanks" | "short_answer" | "long_answer" | "match",
@@ -46,6 +54,7 @@ The output must be strictly in JSON format matching this structure:
   ]
 }
 
+IMPORTANT: Include 2-3 colorful, minimalist, education-themed graphic descriptions in the "graphics" array that are directly relevant to the topic (e.g., if topic is "Plants", suggest "a colorful green leaf" or "a smiling sun"). These will be rendered as icons or simple illustrations.
 Ensure the questions are strictly aligned with the specified board syllabus and appropriate for the class level.`;
 
       const response = await openai.chat.completions.create({

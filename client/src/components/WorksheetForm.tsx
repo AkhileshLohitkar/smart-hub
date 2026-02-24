@@ -30,6 +30,7 @@ import { insertWorksheetSchema } from "@shared/schema";
 // We extend the insert schema and coerce length for numbers
 const formSchema = insertWorksheetSchema.extend({
   length: z.coerce.number().min(1).max(50),
+  chapter: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -45,6 +46,7 @@ export function WorksheetForm() {
       className: "",
       board: "",
       subject: "",
+      chapter: "",
       topic: "",
       difficulty: "medium",
       length: 10,
@@ -167,6 +169,28 @@ export function WorksheetForm() {
                       placeholder="e.g. Mathematics, General Science, English Grammar" 
                       className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl px-4"
                       {...field} 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Chapter */}
+            <FormField
+              control={form.control}
+              name="chapter"
+              render={({ field }) => (
+                <FormItem className="col-span-1 md:col-span-2">
+                  <FormLabel className="text-sm font-semibold text-foreground/80">
+                    Chapter
+                  </FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="e.g. Chapter 5: Life Processes, Unit 2: Algebra" 
+                      className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl px-4"
+                      {...field}
+                      value={field.value || ""} 
                     />
                   </FormControl>
                   <FormMessage />

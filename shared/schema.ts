@@ -7,6 +7,7 @@ export const worksheets = pgTable("worksheets", {
   className: text("class_name").notNull(),
   board: text("board").notNull(),
   subject: text("subject").notNull(),
+  chapter: text("chapter"),
   topic: text("topic").notNull(),
   difficulty: text("difficulty").notNull().default("medium"),
   length: integer("length").notNull().default(10),

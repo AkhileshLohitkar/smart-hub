@@ -1,5 +1,5 @@
 import { Worksheet } from "@shared/schema";
-import { CheckSquare, Type, ListOrdered, Edit3, Link as LinkIcon } from "lucide-react";
+import { CheckSquare, Type, ListOrdered, Edit3, Link as LinkIcon, Sparkles } from "lucide-react";
 
 interface WorksheetRenderProps {
   worksheet: Worksheet;
@@ -19,12 +19,31 @@ interface ContentSection {
 interface WorksheetContent {
   title: string;
   instructions: string;
+  graphics?: {
+    description: string;
+    position: "top-right" | "bottom-left" | "between-sections";
+    altText: string;
+  }[];
   sections: ContentSection[];
 }
 
 export function WorksheetRender({ worksheet }: WorksheetRenderProps) {
   const content = worksheet.content as unknown as WorksheetContent;
   const isColor = worksheet.colorMode === "color";
+
+  // Mock graphic rendering with icons since we don't have a real image generation service for each topic yet
+  // but we can show a placeholder or a themed icon based on the description
+  const GraphicPlaceholder = ({ graphic }: { graphic: any }) => {
+    if (!isColor) return null;
+    return (
+      <div className="flex flex-col items-center justify-center p-2 opacity-70 print:opacity-100">
+        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center border-2 border-primary/20">
+          <Sparkles className="w-8 h-8 text-primary" />
+        </div>
+        <p className="text-[10px] mt-1 text-primary/60 font-sans max-w-[80px] text-center">{graphic.altText}</p>
+      </div>
+    );
+  };
 
   // Section icons mapping
   const getSectionIcon = (type: string) => {
@@ -43,13 +62,19 @@ export function WorksheetRender({ worksheet }: WorksheetRenderProps) {
     <div className="bg-white text-black font-serif w-full max-w-4xl mx-auto min-h-[297mm] shadow-2xl p-8 md:p-16 rounded-sm print-a4 print:shadow-none print:m-0 print:p-8">
       
       {/* Header Info Block */}
-      <div className={`flex justify-between items-end border-b-2 pb-6 mb-8 ${isColor ? 'border-primary/50' : 'border-black'}`}>
+      <div className={`flex justify-between items-end border-b-2 pb-6 mb-8 relative ${isColor ? 'border-primary/50' : 'border-black'}`}>
+        {isColor && content.graphics?.find(g => g.position === "top-right") && (
+          <div className="absolute -top-4 -right-4">
+            <GraphicPlaceholder graphic={content.graphics.find(g => g.position === "top-right")} />
+          </div>
+        )}
         <div>
           <h1 className={`text-3xl md:text-4xl font-bold font-display mb-2 ${isColor ? 'text-primary' : 'text-black'}`}>
             {content.title || `${worksheet.subject}: ${worksheet.topic}`}
           </h1>
           <p className="text-gray-600 font-sans text-sm md:text-base uppercase tracking-wider">
             {worksheet.board} • Grade: {worksheet.className} • {worksheet.difficulty}
+            {worksheet.chapter && ` • ${worksheet.chapter}`}
           </p>
         </div>
         
@@ -91,15 +116,23 @@ export function WorksheetRender({ worksheet }: WorksheetRenderProps) {
           <div key={sIndex} className="page-break-inside-avoid">
             
             {/* Section Header */}
-            <div className="flex items-center mb-6">
-              {isColor && (
-                <div className="text-primary opacity-80">
-                  {getSectionIcon(section.type)}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center">
+                {isColor && (
+                  <div className="text-primary opacity-80">
+                    {getSectionIcon(section.type)}
+                  </div>
+                )}
+                <h2 className={`text-xl font-bold font-display ${isColor ? 'text-primary' : 'text-black border-b border-black pb-1 inline-block'}`}>
+                  Part {String.fromCharCode(65 + sIndex)}: {section.title}
+                </h2>
+              </div>
+              
+              {isColor && content.graphics?.find(g => g.position === "between-sections" && content.sections.indexOf(section) % 2 === 0) && (
+                <div className="hidden md:block">
+                  <GraphicPlaceholder graphic={content.graphics.find(g => g.position === "between-sections")} />
                 </div>
               )}
-              <h2 className={`text-xl font-bold font-display ${isColor ? 'text-primary' : 'text-black border-b border-black pb-1 inline-block'}`}>
-                Part {String.fromCharCode(65 + sIndex)}: {section.title}
-              </h2>
             </div>
 
             {/* Questions */}
