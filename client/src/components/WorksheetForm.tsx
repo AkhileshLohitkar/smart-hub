@@ -14,6 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -53,6 +54,15 @@ export function WorksheetForm() {
       colorMode: "bw",
     },
   });
+
+  const [subject, className] = form.watch(["subject", "className"]);
+
+  const getTopicsForSubject = (subject: string, grade: string) => {
+    // This could be expanded into a proper lookup table or API call
+    return [];
+  };
+
+  const topics = getTopicsForSubject(subject, className);
 
   const onSubmit = async (data: FormValues) => {
     try {
@@ -205,16 +215,31 @@ export function WorksheetForm() {
               render={({ field }) => (
                 <FormItem className="col-span-1 md:col-span-2">
                   <FormLabel className="text-sm font-semibold text-foreground/80">
-                    Specific Topic
+                    Topic
                   </FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="e.g. Fractions, Photosynthesis, Present Tense" 
-                      className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl px-4"
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormDescription>Be as specific as possible for better results.</FormDescription>
+                  <Tabs defaultValue="manual" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 mb-4">
+                      <TabsTrigger value="manual">Specific Topic</TabsTrigger>
+                      <TabsTrigger value="chapters">Chapters</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="manual">
+                      <FormControl>
+                        <Input 
+                          placeholder="e.g. Photosynthesis, Trigonometry, World War II" 
+                          className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl px-4"
+                          {...field} 
+                          value={field.value || ""}
+                        />
+                      </FormControl>
+                      <FormDescription className="mt-2">Be as specific as possible for better results.</FormDescription>
+                    </TabsContent>
+                    <TabsContent value="chapters">
+                      <div className="p-4 border-2 border-dashed rounded-xl text-center text-sm text-muted-foreground bg-muted/30">
+                        <p>Select chapters from the curriculum</p>
+                        <p className="text-xs mt-1 italic font-sans">AI will generate a worksheet covering standard chapters for {subject || "the selected subject"}</p>
+                      </div>
+                    </TabsContent>
+                  </Tabs>
                   <FormMessage />
                 </FormItem>
               )}

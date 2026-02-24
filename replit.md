@@ -26,6 +26,7 @@ Preferred communication style: Simple, everyday language.
 - **Animations**: `framer-motion` for page transitions
 - **Validation**: Zod schemas shared between client and server via `@hookform/resolvers`
 - **Print Support**: Uses `@media print` CSS and `window.print()` for generating printable worksheets — no PDF library needed
+- **Graphics**: AI-generated worksheets include descriptions for minimalist, colorful graphics that are rendered as placeholders in color mode.
 - **Fonts**: Inter (sans), Outfit (display), Lora (serif) — configured via CSS variables `--font-sans`, `--font-display`, `--font-serif`
 - **Path aliases**: `@/` maps to `client/src/`, `@shared/` maps to `shared/`
 
