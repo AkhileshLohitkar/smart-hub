@@ -108,9 +108,14 @@ export function WorksheetForm() {
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="Grade 1">Grade 1</SelectItem>
+                      <SelectItem value="Grade 2">Grade 2</SelectItem>
                       <SelectItem value="Grade 3">Grade 3</SelectItem>
+                      <SelectItem value="Grade 4">Grade 4</SelectItem>
                       <SelectItem value="Grade 5">Grade 5</SelectItem>
+                      <SelectItem value="Grade 6">Grade 6</SelectItem>
+                      <SelectItem value="Grade 7">Grade 7</SelectItem>
                       <SelectItem value="Grade 8">Grade 8</SelectItem>
+                      <SelectItem value="Grade 9">Grade 9</SelectItem>
                       <SelectItem value="Grade 10">Grade 10</SelectItem>
                       <SelectItem value="High School">High School</SelectItem>
                     </SelectContent>
