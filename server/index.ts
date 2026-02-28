@@ -19,7 +19,8 @@ declare module "http" {
 async function initStripe() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
-    throw new Error('DATABASE_URL required for Stripe integration');
+    console.warn('DATABASE_URL not set, skipping Stripe initialization');
+    return;
   }
 
   try {
@@ -48,7 +49,7 @@ async function initStripe() {
       .then(() => console.log('Stripe data synced'))
       .catch((err: any) => console.error('Error syncing Stripe data:', err));
   } catch (error) {
-    console.error('Failed to initialize Stripe:', error);
+    console.warn('Stripe initialization skipped:', (error as Error).message);
   }
 }
 
@@ -127,7 +128,11 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  await initStripe();
+  try {
+    await initStripe();
+  } catch (err) {
+    console.warn('Stripe init error (non-fatal):', (err as Error).message);
+  }
   setupAuth(app);
   await registerRoutes(httpServer, app);
 
