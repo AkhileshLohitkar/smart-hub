@@ -25,6 +25,8 @@ Preferred communication style: Simple, everyday language.
   - `/auth` — Login / Registration page
   - `/dashboard` — Worksheet generator (authenticated)
   - `/worksheet/:id` — Worksheet view with rating & download
+  - `/children` — Children profile management (authenticated)
+  - `/history` — Worksheet history (authenticated)
 - **State Management**: `@tanstack/react-query` for server state, `react-hook-form` for form state
 - **UI Components**: shadcn/ui (new-york style) with Radix UI primitives, Tailwind CSS for styling
 - **Color Theme**: Instagram-inspired gradient (purple → pink → orange) using CSS custom properties
@@ -32,7 +34,8 @@ Preferred communication style: Simple, everyday language.
 - **Validation**: Zod schemas shared between client and server via `@hookform/resolvers`
 - **Print Support**: Uses `@media print` CSS and `window.print()` for generating printable worksheets
 - **PDF Download**: Uses `html2canvas` + `jspdf` for direct PDF download
-- **Star Rating**: Custom StarRating component for worksheet feedback before download
+- **Star Rating**: Rating popup dialog appears on first worksheet view; custom StarRating component
+- **Answer Key**: Compact answer sheet rendered below worksheet with page break for printing
 - **Graphics**: AI-generated worksheets include descriptions for minimalist, colorful graphics
 - **Fonts**: Inter (sans), Outfit (display), Lora (serif)
 - **Path aliases**: `@/` maps to `client/src/`, `@shared/` maps to `shared/`
@@ -55,6 +58,7 @@ Preferred communication style: Simple, everyday language.
 - **Schema location**: `shared/schema.ts`
 - **Tables**:
   - `users` — id, email, password (hashed), name, plan, planExpiresAt, maxChildren, worksheetsGenerated, createdAt
+  - `children` — id, userId, name, board, className, createdAt
   - `worksheets` — id, userId, className, board, subject, chapter, topic, difficulty, length, colorMode, content (JSON), rating, createdAt
   - `session` — created automatically by connect-pg-simple
 - **Migrations**: Managed via `drizzle-kit push`

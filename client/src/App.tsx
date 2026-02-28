@@ -9,6 +9,8 @@ import Landing from "@/pages/Landing";
 import AuthPage from "@/pages/AuthPage";
 import Home from "@/pages/Home";
 import WorksheetView from "@/pages/WorksheetView";
+import History from "@/pages/History";
+import Children from "@/pages/Children";
 
 function Router() {
   return (
@@ -17,6 +19,8 @@ function Router() {
       <Route path="/auth" component={AuthPage} />
       <Route path="/dashboard" component={Home} />
       <Route path="/worksheet/:id" component={WorksheetView} />
+      <Route path="/history" component={History} />
+      <Route path="/children" component={Children} />
       <Route component={NotFound} />
     </Switch>
   );

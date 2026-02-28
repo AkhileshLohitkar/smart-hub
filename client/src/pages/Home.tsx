@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { WorksheetForm } from "@/components/WorksheetForm";
-import { Sparkles, Brain, Printer, CheckCircle, BookOpen, LogOut, User, Loader2 } from "lucide-react";
+import { Sparkles, Brain, Printer, CheckCircle, BookOpen, LogOut, User, Loader2, FileText, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -58,9 +58,19 @@ export default function Home() {
             </div>
             <span className="text-xl font-display font-bold text-gradient-primary" data-testid="logo-text">Qik Worksheets</span>
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             {user && (
               <>
+                <Link href="/children">
+                  <Button variant="ghost" size="sm" data-testid="link-my-children">
+                    <Users className="w-4 h-4 mr-1" /> My Children
+                  </Button>
+                </Link>
+                <Link href="/history">
+                  <Button variant="ghost" size="sm" data-testid="link-my-worksheets">
+                    <FileText className="w-4 h-4 mr-1" /> My Worksheets
+                  </Button>
+                </Link>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <User className="w-4 h-4" />
                   <span data-testid="text-username">{user.name}</span>

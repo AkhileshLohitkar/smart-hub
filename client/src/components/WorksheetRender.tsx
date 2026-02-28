@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Worksheet } from "@shared/schema";
 import { CheckSquare, Type, ListOrdered, Edit3, Link as LinkIcon, Sparkles } from "lucide-react";
 
@@ -5,15 +6,29 @@ interface WorksheetRenderProps {
   worksheet: Worksheet;
 }
 
-// Structure inferred from the backend JSON response spec
+interface MatchPair {
+  left: string;
+  right: string;
+}
+
+interface ContentQuestion {
+  question: string;
+  options?: string[];
+  answerSpaceLines: number;
+  matchPairs?: MatchPair[];
+  answer?: string;
+}
+
 interface ContentSection {
   type: "mcq" | "fill_blanks" | "short_answer" | "long_answer" | "match";
   title: string;
-  questions: {
-    question: string;
-    options?: string[];
-    answerSpaceLines: number;
-  }[];
+  questions: ContentQuestion[];
+}
+
+interface AnswerKeyEntry {
+  sectionIndex: number;
+  questionIndex: number;
+  answer: string;
 }
 
 interface WorksheetContent {
@@ -25,14 +40,110 @@ interface WorksheetContent {
     altText: string;
   }[];
   sections: ContentSection[];
+  answerKey?: AnswerKeyEntry[];
+}
+
+function AnswerSheet({ content }: { content: WorksheetContent }) {
+  const hasAnswers = content.answerKey && content.answerKey.length > 0;
+  const hasInlineAnswers = content.sections?.some(s => s.questions.some(q => q.answer));
+
+  if (!hasAnswers && !hasInlineAnswers) return null;
+
+  return (
+    <div className="bg-white text-black font-sans w-full max-w-4xl mx-auto shadow-2xl p-6 md:p-10 rounded-sm print-a4 print:shadow-none print:m-0 print:p-6 mt-4" style={{ pageBreakBefore: "always" }}>
+      <h2 className="text-lg font-bold border-b-2 border-black pb-2 mb-4 uppercase tracking-wide" data-testid="text-answer-sheet-title">
+        Answer Key
+      </h2>
+      <div className="space-y-3">
+        {content.sections?.map((section, sIndex) => (
+          <div key={sIndex}>
+            <h3 className="text-xs font-bold uppercase tracking-wide mb-1 text-gray-700">
+              Part {String.fromCharCode(65 + sIndex)}: {section.title}
+            </h3>
+            <div className="border border-gray-300 rounded-md p-2 space-y-1">
+              {section.questions.map((q, qIndex) => {
+                const answerFromKey = content.answerKey?.find(
+                  a => a.sectionIndex === sIndex && a.questionIndex === qIndex
+                );
+                const answer = answerFromKey?.answer || q.answer;
+                if (!answer) return null;
+                return (
+                  <div key={qIndex} className="flex gap-2 text-xs leading-snug" data-testid={`text-answer-${sIndex}-${qIndex}`}>
+                    <span className="font-bold shrink-0 text-gray-600">{qIndex + 1}.</span>
+                    <span>{answer}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MatchSection({ q, qIndex, isColor }: { q: ContentQuestion; qIndex: number; isColor: boolean }) {
+  let leftItems: string[] = [];
+  let rightItems: string[] = [];
+
+  if (q.matchPairs && q.matchPairs.length > 0) {
+    leftItems = q.matchPairs.map(p => p.left);
+    rightItems = q.matchPairs.map(p => p.right);
+  } else if (q.options && q.options.length >= 2) {
+    const half = Math.ceil(q.options.length / 2);
+    leftItems = q.options.slice(0, half);
+    rightItems = q.options.slice(half);
+  }
+
+  const shuffledRight = useMemo(() => {
+    const arr = [...rightItems];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }, [rightItems.join("|||")]);
+
+  return (
+    <div className="page-break-inside-avoid relative" data-testid={`match-question-${qIndex}`}>
+      <div className="flex gap-3">
+        <span className="font-bold shrink-0">{qIndex + 1}.</span>
+        <div className="w-full">
+          <p className="text-base leading-relaxed mb-2" data-testid={`text-match-question-${qIndex}`}>{q.question}</p>
+          <div className="flex flex-wrap gap-4">
+            <div className={`flex-1 min-w-[140px] border rounded-md p-3 ${isColor ? 'border-primary/30 bg-primary/5' : 'border-gray-400'}`} data-testid={`column-a-${qIndex}`}>
+              <h4 className="text-xs font-bold uppercase tracking-wide mb-2 text-gray-600">Column A</h4>
+              <div className="space-y-2">
+                {leftItems.map((item, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm">
+                    <span className="font-bold shrink-0 w-5">{i + 1}.</span>
+                    <span data-testid={`text-col-a-${qIndex}-${i}`}>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className={`flex-1 min-w-[140px] border rounded-md p-3 ${isColor ? 'border-primary/30 bg-primary/5' : 'border-gray-400'}`} data-testid={`column-b-${qIndex}`}>
+              <h4 className="text-xs font-bold uppercase tracking-wide mb-2 text-gray-600">Column B</h4>
+              <div className="space-y-2">
+                {shuffledRight.map((item, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm">
+                    <span className="font-bold shrink-0 w-5">{String.fromCharCode(97 + i)}.</span>
+                    <span data-testid={`text-col-b-${qIndex}-${i}`}>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function WorksheetRender({ worksheet }: WorksheetRenderProps) {
   const content = worksheet.content as unknown as WorksheetContent;
   const isColor = worksheet.colorMode === "color";
 
-  // Mock graphic rendering with icons since we don't have a real image generation service for each topic yet
-  // but we can show a placeholder or a themed icon based on the description
   const GraphicPlaceholder = ({ graphic }: { graphic: any }) => {
     if (!isColor) return null;
     return (
@@ -45,7 +156,6 @@ export function WorksheetRender({ worksheet }: WorksheetRenderProps) {
     );
   };
 
-  // Section icons mapping
   const getSectionIcon = (type: string) => {
     const props = { className: "w-5 h-5 mr-2" };
     switch (type) {
@@ -59,27 +169,38 @@ export function WorksheetRender({ worksheet }: WorksheetRenderProps) {
   };
 
   return (
-    <div className="bg-white text-black font-serif w-full max-w-4xl mx-auto min-h-[297mm] shadow-2xl p-8 md:p-16 rounded-sm print-a4 print:shadow-none print:m-0 print:p-8">
-      
-      {/* Header Info Block */}
-      <div className={`flex justify-between items-end border-b-2 pb-6 mb-8 relative ${isColor ? 'border-primary/50' : 'border-black'}`}>
-        {isColor && content.graphics?.find(g => g.position === "top-right") && (
-          <div className="absolute -top-4 -right-4">
-            <GraphicPlaceholder graphic={content.graphics.find(g => g.position === "top-right")} />
-          </div>
-        )}
-        <div>
-          <h1 className={`text-3xl md:text-4xl font-bold font-display mb-2 ${isColor ? 'text-primary' : 'text-black'}`}>
-            {content.title || `${worksheet.subject}: ${worksheet.topic}`}
-          </h1>
-          <p className="text-gray-600 font-sans text-sm md:text-base uppercase tracking-wider">
-            {worksheet.board} • Grade: {worksheet.className} • {worksheet.difficulty}
-            {worksheet.chapter && ` • ${worksheet.chapter}`}
-          </p>
-        </div>
+    <>
+      <div className="bg-white text-black font-serif w-full max-w-4xl mx-auto min-h-[297mm] shadow-2xl p-8 md:p-16 rounded-sm print-a4 print:shadow-none print:m-0 print:p-8">
         
-        {/* Name / Date Fields for Students */}
-        <div className="hidden sm:block space-y-4 font-sans text-sm w-64">
+        <div className={`flex justify-between items-end border-b-2 pb-6 mb-8 relative ${isColor ? 'border-primary/50' : 'border-black'}`}>
+          {isColor && content.graphics?.find(g => g.position === "top-right") && (
+            <div className="absolute -top-4 -right-4">
+              <GraphicPlaceholder graphic={content.graphics.find(g => g.position === "top-right")} />
+            </div>
+          )}
+          <div>
+            <h1 className={`text-3xl md:text-4xl font-bold font-display mb-2 ${isColor ? 'text-primary' : 'text-black'}`}>
+              {content.title || `${worksheet.subject}: ${worksheet.topic}`}
+            </h1>
+            <p className="text-gray-600 font-sans text-sm md:text-base uppercase tracking-wider">
+              {worksheet.board} • Grade: {worksheet.className} • {worksheet.difficulty}
+              {worksheet.chapter && ` • ${worksheet.chapter}`}
+            </p>
+          </div>
+          
+          <div className="hidden sm:block space-y-4 font-sans text-sm w-64">
+            <div className="flex items-end gap-2">
+              <span className="font-semibold whitespace-nowrap">Name:</span>
+              <div className="border-b border-gray-400 w-full"></div>
+            </div>
+            <div className="flex items-end gap-2">
+              <span className="font-semibold whitespace-nowrap">Date:</span>
+              <div className="border-b border-gray-400 w-full"></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="sm:hidden space-y-4 font-sans text-sm mb-8">
           <div className="flex items-end gap-2">
             <span className="font-semibold whitespace-nowrap">Name:</span>
             <div className="border-b border-gray-400 w-full"></div>
@@ -89,102 +210,88 @@ export function WorksheetRender({ worksheet }: WorksheetRenderProps) {
             <div className="border-b border-gray-400 w-full"></div>
           </div>
         </div>
-      </div>
 
-      <div className="sm:hidden space-y-4 font-sans text-sm mb-8">
-        <div className="flex items-end gap-2">
-          <span className="font-semibold whitespace-nowrap">Name:</span>
-          <div className="border-b border-gray-400 w-full"></div>
-        </div>
-        <div className="flex items-end gap-2">
-          <span className="font-semibold whitespace-nowrap">Date:</span>
-          <div className="border-b border-gray-400 w-full"></div>
-        </div>
-      </div>
+        {content.instructions && (
+          <div className={`p-4 mb-8 rounded-lg ${isColor ? 'bg-blue-50 text-blue-900' : 'bg-gray-100 text-black border border-gray-300'}`}>
+            <h3 className="font-sans font-bold text-sm uppercase tracking-wide mb-1">Instructions</h3>
+            <p className="italic text-sm">{content.instructions}</p>
+          </div>
+        )}
 
-      {/* Instructions */}
-      {content.instructions && (
-        <div className={`p-4 mb-8 rounded-lg ${isColor ? 'bg-blue-50 text-blue-900' : 'bg-gray-100 text-black border border-gray-300'}`}>
-          <h3 className="font-sans font-bold text-sm uppercase tracking-wide mb-1">Instructions</h3>
-          <p className="italic text-sm">{content.instructions}</p>
-        </div>
-      )}
-
-      {/* Sections */}
-      <div className="space-y-12">
-        {content.sections?.map((section, sIndex) => (
-          <div key={sIndex} className="page-break-inside-avoid">
-            
-            {/* Section Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center">
-                {isColor && (
-                  <div className="text-primary opacity-80">
-                    {getSectionIcon(section.type)}
+        <div className="space-y-6">
+          {content.sections?.map((section, sIndex) => (
+            <div key={sIndex} className="page-break-inside-avoid">
+              
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center">
+                  {isColor && (
+                    <div className="text-primary opacity-80">
+                      {getSectionIcon(section.type)}
+                    </div>
+                  )}
+                  <h2 className={`text-xl font-bold font-display ${isColor ? 'text-primary' : 'text-black border-b border-black pb-1 inline-block'}`}>
+                    Part {String.fromCharCode(65 + sIndex)}: {section.title}
+                  </h2>
+                </div>
+                
+                {isColor && content.graphics?.find(g => g.position === "between-sections" && content.sections.indexOf(section) % 2 === 0) && (
+                  <div className="hidden md:block">
+                    <GraphicPlaceholder graphic={content.graphics.find(g => g.position === "between-sections")} />
                   </div>
                 )}
-                <h2 className={`text-xl font-bold font-display ${isColor ? 'text-primary' : 'text-black border-b border-black pb-1 inline-block'}`}>
-                  Part {String.fromCharCode(65 + sIndex)}: {section.title}
-                </h2>
+              </div>
+
+              <div className="space-y-4 pl-1 md:pl-4">
+                {section.questions.map((q, qIndex) => (
+                  section.type === "match" ? (
+                    <MatchSection key={qIndex} q={q} qIndex={qIndex} isColor={isColor} />
+                  ) : (
+                    <div key={qIndex} className="page-break-inside-avoid relative">
+                      <div className="flex gap-3">
+                        <span className="font-bold shrink-0">{qIndex + 1}.</span>
+                        <div className="w-full">
+                          <p className="text-base leading-relaxed mb-2">{q.question}</p>
+                          
+                          {section.type === "mcq" && q.options && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 font-sans ml-2">
+                              {q.options.map((opt, optIndex) => (
+                                <label key={optIndex} className="flex items-center gap-3 cursor-pointer group">
+                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isColor ? 'border-primary/40 group-hover:border-primary' : 'border-gray-400 group-hover:border-black'}`}>
+                                    <span className="text-[10px] font-bold opacity-0 group-hover:opacity-100">
+                                      {String.fromCharCode(97 + optIndex)}
+                                    </span>
+                                  </div>
+                                  <span className="text-sm">{opt}</span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+
+                          {q.answerSpaceLines > 0 && (
+                            <div className="space-y-1 mt-2 opacity-40">
+                              {Array.from({ length: section.type === "short_answer" ? Math.min(q.answerSpaceLines, 2) : q.answerSpaceLines }).map((_, i) => (
+                                <div key={i} className={`border-b border-dashed h-5 w-full ${isColor ? 'border-primary/50' : 'border-black'}`} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                ))}
               </div>
               
-              {isColor && content.graphics?.find(g => g.position === "between-sections" && content.sections.indexOf(section) % 2 === 0) && (
-                <div className="hidden md:block">
-                  <GraphicPlaceholder graphic={content.graphics.find(g => g.position === "between-sections")} />
-                </div>
-              )}
             </div>
+          ))}
+        </div>
 
-            {/* Questions */}
-            <div className="space-y-8 pl-1 md:pl-4">
-              {section.questions.map((q, qIndex) => (
-                <div key={qIndex} className="page-break-inside-avoid relative">
-                  
-                  {/* Question Text */}
-                  <div className="flex gap-3">
-                    <span className="font-bold shrink-0">{qIndex + 1}.</span>
-                    <div className="w-full">
-                      <p className="text-base leading-relaxed mb-4">{q.question}</p>
-                      
-                      {/* MCQ Options */}
-                      {section.type === "mcq" && q.options && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 font-sans ml-2">
-                          {q.options.map((opt, optIndex) => (
-                            <label key={optIndex} className="flex items-center gap-3 cursor-pointer group">
-                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isColor ? 'border-primary/40 group-hover:border-primary' : 'border-gray-400 group-hover:border-black'}`}>
-                                <span className="text-[10px] font-bold opacity-0 group-hover:opacity-100">
-                                  {String.fromCharCode(97 + optIndex)}
-                                </span>
-                              </div>
-                              <span className="text-sm">{opt}</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
+        <div className="mt-16 pt-8 border-t border-gray-200 text-center text-sm text-gray-400 font-sans print-only">
+          Generated by Smart AI Worksheet Generator • {new Date().toLocaleDateString()}
+        </div>
 
-                      {/* Answer Space (Lines) */}
-                      {q.answerSpaceLines > 0 && (
-                        <div className="space-y-2 mt-4 opacity-40">
-                          {Array.from({ length: q.answerSpaceLines }).map((_, i) => (
-                            <div key={i} className={`border-b border-dashed h-8 w-full ${isColor ? 'border-primary/50' : 'border-black'}`} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            
-          </div>
-        ))}
       </div>
 
-      {/* Footer */}
-      <div className="mt-16 pt-8 border-t border-gray-200 text-center text-sm text-gray-400 font-sans print-only">
-        Generated by Smart AI Worksheet Generator • {new Date().toLocaleDateString()}
-      </div>
-
-    </div>
+      <AnswerSheet content={content} />
+    </>
   );
 }

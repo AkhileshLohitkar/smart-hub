@@ -14,6 +14,15 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const children = pgTable("children", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  name: text("name").notNull(),
+  board: text("board").notNull(),
+  className: text("class_name").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const worksheets = pgTable("worksheets", {
   id: serial("id").primaryKey(),
   userId: integer("user_id"),
@@ -39,6 +48,12 @@ export const insertUserSchema = createInsertSchema(users).omit({
   maxChildren: true,
 });
 
+export const insertChildSchema = createInsertSchema(children).omit({
+  id: true,
+  createdAt: true,
+  userId: true,
+});
+
 export const insertWorksheetSchema = createInsertSchema(worksheets).omit({
   id: true,
   createdAt: true,
@@ -60,6 +75,8 @@ export const registerSchema = z.object({
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type Child = typeof children.$inferSelect;
+export type InsertChild = z.infer<typeof insertChildSchema>;
 export type Worksheet = typeof worksheets.$inferSelect;
 export type InsertWorksheet = z.infer<typeof insertWorksheetSchema>;
 

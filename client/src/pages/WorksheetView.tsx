@@ -1,11 +1,11 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { useWorksheet } from "@/hooks/use-worksheets";
 import { WorksheetRender } from "@/components/WorksheetRender";
 import { StarRating } from "@/components/StarRating";
-import { ArrowLeft, Printer, Download, Loader2, BookOpen, CheckCircle } from "lucide-react";
+import { ArrowLeft, Printer, Download, Loader2, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { motion } from "framer-motion";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -16,10 +16,16 @@ export default function WorksheetView() {
   const id = params.id ? parseInt(params.id, 10) : null;
   const { data: worksheet, isLoading, isError } = useWorksheet(id);
   const [userRating, setUserRating] = useState(0);
-  const [hasRated, setHasRated] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
   const worksheetRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (worksheet && !worksheet.rating) {
+      setRatingDialogOpen(true);
+    }
+  }, [worksheet]);
 
   const rateMutation = useMutation({
     mutationFn: async (rating: number) => {
@@ -27,15 +33,16 @@ export default function WorksheetView() {
       return res.json();
     },
     onSuccess: () => {
-      setHasRated(true);
+      setRatingDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/worksheets", id] });
       toast({ title: "Thanks for rating!", description: "Your feedback helps us improve." });
     },
   });
 
-  const handleRate = (rating: number) => {
-    setUserRating(rating);
-    rateMutation.mutate(rating);
+  const handleSubmitRating = () => {
+    if (userRating > 0) {
+      rateMutation.mutate(userRating);
+    }
   };
 
   const handlePrint = () => {
@@ -120,9 +127,6 @@ export default function WorksheetView() {
     );
   }
 
-  const currentRating = worksheet.rating || userRating;
-  const showRatingPrompt = !worksheet.rating && !hasRated;
-
   return (
     <div className="min-h-screen bg-muted/20 flex flex-col">
       <div className="bg-white/80 backdrop-blur-lg border-b border-border/50 shadow-sm sticky top-0 z-50 no-print">
@@ -179,35 +183,36 @@ export default function WorksheetView() {
         </div>
       </div>
 
-      {showRatingPrompt && (
-        <div className="no-print">
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-r from-pink-50 to-orange-50 border-b border-pink-100"
-          >
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-center gap-3">
-              <p className="text-sm font-medium text-foreground">How would you rate this worksheet?</p>
-              <StarRating rating={userRating} onRate={handleRate} size="md" />
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {hasRated && (
-        <div className="no-print">
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-100"
-          >
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-center gap-2">
-              <CheckCircle className="w-4 h-4 text-green-600" />
-              <p className="text-sm font-medium text-green-800">Thanks for your rating! You can now download your worksheet.</p>
-            </div>
-          </motion.div>
-        </div>
-      )}
+      <Dialog open={ratingDialogOpen} onOpenChange={setRatingDialogOpen}>
+        <DialogContent data-testid="dialog-rate-worksheet">
+          <DialogHeader>
+            <DialogTitle>Rate this Worksheet</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            <p className="text-sm text-muted-foreground">How would you rate the quality of this worksheet?</p>
+            <StarRating rating={userRating} onRate={setUserRating} size="lg" />
+          </div>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setRatingDialogOpen(false)}
+              data-testid="button-skip-rating"
+            >
+              Skip
+            </Button>
+            <Button
+              onClick={handleSubmitRating}
+              disabled={userRating === 0 || rateMutation.isPending}
+              data-testid="button-submit-rating"
+            >
+              {rateMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+              ) : null}
+              Submit Rating
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <main className="flex-1 py-10 px-4 sm:px-8 overflow-y-auto print:p-0 print:overflow-visible">
         <motion.div

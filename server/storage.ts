@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, worksheets, type InsertUser, type User, type InsertWorksheet, type WorksheetResponse } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { users, children, worksheets, type InsertUser, type User, type InsertChild, type Child, type InsertWorksheet, type WorksheetResponse } from "@shared/schema";
+import { eq, and, desc } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -8,6 +8,10 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUserPlan(userId: number, plan: string, maxChildren: number, expiresAt: Date | null): Promise<User>;
   incrementWorksheetCount(userId: number): Promise<void>;
+  getChildren(userId: number): Promise<Child[]>;
+  getChild(id: number): Promise<Child | undefined>;
+  createChild(child: InsertChild, userId: number): Promise<Child>;
+  deleteChild(id: number, userId: number): Promise<boolean>;
   getWorksheet(id: number): Promise<WorksheetResponse | undefined>;
   createWorksheet(worksheet: InsertWorksheet, content: any, userId?: number): Promise<WorksheetResponse>;
   rateWorksheet(id: number, rating: number): Promise<WorksheetResponse>;
@@ -47,6 +51,27 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getChildren(userId: number): Promise<Child[]> {
+    return db.select().from(children).where(eq(children.userId, userId));
+  }
+
+  async getChild(id: number): Promise<Child | undefined> {
+    const [child] = await db.select().from(children).where(eq(children.id, id));
+    return child;
+  }
+
+  async createChild(child: InsertChild, userId: number): Promise<Child> {
+    const [created] = await db.insert(children).values({ ...child, userId }).returning();
+    return created;
+  }
+
+  async deleteChild(id: number, userId: number): Promise<boolean> {
+    const result = await db.delete(children)
+      .where(and(eq(children.id, id), eq(children.userId, userId)))
+      .returning();
+    return result.length > 0;
+  }
+
   async getWorksheet(id: number): Promise<WorksheetResponse | undefined> {
     const [worksheet] = await db.select().from(worksheets).where(eq(worksheets.id, id));
     return worksheet;
@@ -70,7 +95,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserWorksheets(userId: number): Promise<WorksheetResponse[]> {
-    return db.select().from(worksheets).where(eq(worksheets.userId, userId));
+    return db.select().from(worksheets).where(eq(worksheets.userId, userId)).orderBy(desc(worksheets.createdAt));
   }
 }
 
