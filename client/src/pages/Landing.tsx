@@ -51,6 +51,15 @@ const plans = [
     highlight: false,
     badge: "Popular",
   },
+  {
+    name: "No Watermark",
+    price: "₹349",
+    period: "/year",
+    children: "Unlimited Children",
+    features: ["Unlimited worksheets", "No watermark on worksheets", "Clean print-ready output", "All boards & subjects", "Premium support"],
+    highlight: true,
+    badge: "Special",
+  },
 ];
 
 const features = [

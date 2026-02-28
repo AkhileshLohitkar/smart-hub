@@ -1,9 +1,11 @@
 import { useMemo } from "react";
 import { Worksheet } from "@shared/schema";
 import { CheckSquare, Type, ListOrdered, Edit3, Link as LinkIcon, Sparkles } from "lucide-react";
+import logoImage from "@assets/IMG_6540_1772304387045.PNG";
 
 interface WorksheetRenderProps {
   worksheet: Worksheet;
+  showWatermark?: boolean;
 }
 
 interface MatchPair {
@@ -140,7 +142,7 @@ function MatchSection({ q, qIndex, isColor }: { q: ContentQuestion; qIndex: numb
   );
 }
 
-export function WorksheetRender({ worksheet }: WorksheetRenderProps) {
+export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRenderProps) {
   const content = worksheet.content as unknown as WorksheetContent;
   const isColor = worksheet.colorMode === "color";
 
@@ -170,8 +172,19 @@ export function WorksheetRender({ worksheet }: WorksheetRenderProps) {
 
   return (
     <>
-      <div className="bg-white text-black font-serif w-full max-w-4xl mx-auto min-h-[297mm] shadow-2xl p-8 md:p-16 rounded-sm print-a4 print:shadow-none print:m-0 print:p-8">
+      <div className="bg-white text-black font-serif w-full max-w-4xl mx-auto min-h-[297mm] shadow-2xl p-8 md:p-16 rounded-sm print-a4 print:shadow-none print:m-0 print:p-8 relative overflow-hidden">
         
+        {showWatermark && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10" data-testid="watermark-overlay">
+            <img
+              src={logoImage}
+              alt="Qik Worksheet"
+              className="w-[350px] h-[350px] object-contain opacity-[0.06] select-none"
+              draggable={false}
+            />
+          </div>
+        )}
+
         <div className={`flex justify-between items-end border-b-2 pb-6 mb-8 relative ${isColor ? 'border-primary/50' : 'border-black'}`}>
           {isColor && content.graphics?.find(g => g.position === "top-right") && (
             <div className="absolute -top-4 -right-4">

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { useWorksheet } from "@/hooks/use-worksheets";
+import { useUser } from "@/hooks/use-auth";
 import { WorksheetRender } from "@/components/WorksheetRender";
 import { StarRating } from "@/components/StarRating";
 import { ArrowLeft, Printer, Download, Loader2, BookOpen } from "lucide-react";
@@ -11,13 +12,17 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
+const NO_WATERMARK_PLANS = ["no_watermark", "no_watermark_annual"];
+
 export default function WorksheetView() {
   const params = useParams();
   const id = params.id ? parseInt(params.id, 10) : null;
   const { data: worksheet, isLoading, isError } = useWorksheet(id);
+  const { data: user } = useUser();
   const [userRating, setUserRating] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
   const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
+  const showWatermark = !user || !NO_WATERMARK_PLANS.includes(user.plan);
   const worksheetRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -222,7 +227,7 @@ export default function WorksheetView() {
           className="print:shadow-none"
           ref={worksheetRef}
         >
-          <WorksheetRender worksheet={worksheet} />
+          <WorksheetRender worksheet={worksheet} showWatermark={showWatermark} />
         </motion.div>
       </main>
     </div>

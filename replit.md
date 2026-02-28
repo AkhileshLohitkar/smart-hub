@@ -69,6 +69,7 @@ Preferred communication style: Simple, everyday language.
 - Starter Annual: ₹999/year, unlimited, 1 child
 - Family Monthly: ₹189/month, unlimited, 2-3 children
 - Family Annual: ₹1,799/year, unlimited, 2-3 children
+- No Watermark: ₹349/year, unlimited worksheets, unlimited children, no watermark on worksheets
 
 ### Key Data Flow
 1. User registers/logs in on the Auth page
