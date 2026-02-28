@@ -53,17 +53,17 @@ function AnswerSheet({ content }: { content: WorksheetContent }) {
   if (!hasAnswers && !hasInlineAnswers) return null;
 
   return (
-    <div className="bg-white text-black font-sans w-full max-w-4xl mx-auto shadow-2xl p-6 md:p-10 rounded-sm print-a4 print:shadow-none print:m-0 print:p-6 mt-4" style={{ pageBreakBefore: "always" }}>
-      <h2 className="text-lg font-bold border-b-2 border-black pb-2 mb-4 uppercase tracking-wide" data-testid="text-answer-sheet-title">
+    <div className="bg-white text-black font-sans w-full max-w-4xl mx-auto shadow-2xl p-6 md:p-8 rounded-sm print-a4 print:shadow-none print:m-0 print:p-6 mt-4" style={{ pageBreakBefore: "always" }}>
+      <h2 className="text-base font-bold border-b-2 border-black pb-1.5 mb-3 uppercase tracking-wide" data-testid="text-answer-sheet-title">
         Answer Key
       </h2>
-      <div className="space-y-3">
+      <div className="space-y-2">
         {content.sections?.map((section, sIndex) => (
           <div key={sIndex}>
-            <h3 className="text-xs font-bold uppercase tracking-wide mb-1 text-gray-700">
+            <h3 className="text-[10px] font-bold uppercase tracking-wide mb-0.5 text-gray-700">
               Part {String.fromCharCode(65 + sIndex)}: {section.title}
             </h3>
-            <div className="border border-gray-300 rounded-md p-2 space-y-1">
+            <div className="border border-gray-300 rounded-md p-1.5 space-y-0.5">
               {section.questions.map((q, qIndex) => {
                 const answerFromKey = content.answerKey?.find(
                   a => a.sectionIndex === sIndex && a.questionIndex === qIndex
@@ -112,25 +112,25 @@ function MatchSection({ q, qIndex, isColor }: { q: ContentQuestion; qIndex: numb
       <div className="flex gap-3">
         <span className="font-bold shrink-0">{qIndex + 1}.</span>
         <div className="w-full">
-          <p className="text-base leading-relaxed mb-2" data-testid={`text-match-question-${qIndex}`}>{q.question}</p>
-          <div className="flex flex-wrap gap-4">
-            <div className={`flex-1 min-w-[140px] border rounded-md p-3 ${isColor ? 'border-primary/30 bg-primary/5' : 'border-gray-400'}`} data-testid={`column-a-${qIndex}`}>
-              <h4 className="text-xs font-bold uppercase tracking-wide mb-2 text-gray-600">Column A</h4>
-              <div className="space-y-2">
+          <p className="text-sm leading-snug mb-1.5" data-testid={`text-match-question-${qIndex}`}>{q.question}</p>
+          <div className="flex flex-wrap gap-3">
+            <div className={`flex-1 min-w-[120px] border rounded-md p-2 ${isColor ? 'border-primary/30 bg-primary/5' : 'border-gray-400'}`} data-testid={`column-a-${qIndex}`}>
+              <h4 className="text-[10px] font-bold uppercase tracking-wide mb-1 text-gray-600">Column A</h4>
+              <div className="space-y-1">
                 {leftItems.map((item, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    <span className="font-bold shrink-0 w-5">{i + 1}.</span>
+                  <div key={i} className="flex items-center gap-1.5 text-xs">
+                    <span className="font-bold shrink-0 w-4">{i + 1}.</span>
                     <span data-testid={`text-col-a-${qIndex}-${i}`}>{item}</span>
                   </div>
                 ))}
               </div>
             </div>
-            <div className={`flex-1 min-w-[140px] border rounded-md p-3 ${isColor ? 'border-primary/30 bg-primary/5' : 'border-gray-400'}`} data-testid={`column-b-${qIndex}`}>
-              <h4 className="text-xs font-bold uppercase tracking-wide mb-2 text-gray-600">Column B</h4>
-              <div className="space-y-2">
+            <div className={`flex-1 min-w-[120px] border rounded-md p-2 ${isColor ? 'border-primary/30 bg-primary/5' : 'border-gray-400'}`} data-testid={`column-b-${qIndex}`}>
+              <h4 className="text-[10px] font-bold uppercase tracking-wide mb-1 text-gray-600">Column B</h4>
+              <div className="space-y-1">
                 {shuffledRight.map((item, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    <span className="font-bold shrink-0 w-5">{String.fromCharCode(97 + i)}.</span>
+                  <div key={i} className="flex items-center gap-1.5 text-xs">
+                    <span className="font-bold shrink-0 w-4">{String.fromCharCode(97 + i)}.</span>
                     <span data-testid={`text-col-b-${qIndex}-${i}`}>{item}</span>
                   </div>
                 ))}
@@ -176,7 +176,7 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
 
   return (
     <>
-      <div className="bg-white text-black font-serif w-full max-w-4xl mx-auto min-h-[297mm] shadow-2xl p-8 md:p-16 rounded-sm print-a4 print:shadow-none print:m-0 print:p-8 relative overflow-hidden">
+      <div className="bg-white text-black font-serif w-full max-w-4xl mx-auto min-h-[297mm] shadow-2xl p-6 md:p-10 rounded-sm print-a4 print:shadow-none print:m-0 print:p-6 relative overflow-hidden" id="worksheet-content">
         
         {showWatermark && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10" data-testid="watermark-overlay">
@@ -189,17 +189,17 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
           </div>
         )}
 
-        <div className={`flex justify-between items-end border-b-2 pb-6 mb-8 relative ${isColor ? 'border-primary/50' : 'border-black'}`}>
+        <div className={`flex justify-between items-end border-b-2 pb-3 mb-5 relative ${isColor ? 'border-primary/50' : 'border-black'}`}>
           {isColor && content.graphics?.find(g => g.position === "top-right") && (
             <div className="absolute -top-4 -right-4">
               <GraphicPlaceholder graphic={content.graphics.find(g => g.position === "top-right")} />
             </div>
           )}
           <div>
-            <h1 className={`text-3xl md:text-4xl font-bold font-display mb-2 ${isColor ? 'text-primary' : 'text-black'}`}>
+            <h1 className={`text-2xl md:text-3xl font-bold font-display mb-1 ${isColor ? 'text-primary' : 'text-black'}`}>
               {content.title || `${worksheet.subject}: ${worksheet.topic}`}
             </h1>
-            <p className="text-gray-600 font-sans text-sm md:text-base uppercase tracking-wider">
+            <p className="text-gray-600 font-sans text-xs uppercase tracking-wider">
               {worksheet.board} • {worksheet.className} • {worksheet.difficulty}
               {worksheet.chapter && ` • ${worksheet.chapter}`}
             </p>
@@ -225,7 +225,7 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
           </div>
         </div>
 
-        <div className="sm:hidden space-y-4 font-sans text-sm mb-8">
+        <div className="sm:hidden space-y-3 font-sans text-sm mb-5">
           <div className="flex items-end gap-2">
             <span className="font-semibold whitespace-nowrap">Name:</span>
             <div className="border-b border-gray-400 w-full"></div>
@@ -237,24 +237,24 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
         </div>
 
         {content.instructions && (
-          <div className={`p-4 mb-8 rounded-lg ${isColor ? 'bg-blue-50 text-blue-900' : 'bg-gray-100 text-black border border-gray-300'}`}>
-            <h3 className="font-sans font-bold text-sm uppercase tracking-wide mb-1">Instructions</h3>
-            <p className="italic text-sm">{content.instructions}</p>
+          <div className={`p-3 mb-5 rounded-lg ${isColor ? 'bg-blue-50 text-blue-900' : 'bg-gray-100 text-black border border-gray-300'}`}>
+            <h3 className="font-sans font-bold text-xs uppercase tracking-wide mb-0.5">Instructions</h3>
+            <p className="italic text-xs leading-snug">{content.instructions}</p>
           </div>
         )}
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           {content.sections?.map((section, sIndex) => (
             <div key={sIndex} className="page-break-inside-avoid">
               
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center">
                   {isColor && (
                     <div className="text-primary opacity-80">
                       {getSectionIcon(section.type)}
                     </div>
                   )}
-                  <h2 className={`text-xl font-bold font-display ${isColor ? 'text-primary' : 'text-black border-b border-black pb-1 inline-block'}`}>
+                  <h2 className={`text-base font-bold font-display ${isColor ? 'text-primary' : 'text-black border-b border-black pb-0.5 inline-block'}`}>
                     Part {String.fromCharCode(65 + sIndex)}: {section.title}
                   </h2>
                 </div>
@@ -273,7 +273,7 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
                 )}
               </div>
 
-              <div className="space-y-4 pl-1 md:pl-4">
+              <div className="space-y-2.5 pl-1 md:pl-3">
                 {section.questions.map((q, qIndex) => (
                   section.type === "match" ? (
                     <MatchSection key={qIndex} q={q} qIndex={qIndex} isColor={isColor} />
@@ -282,27 +282,27 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
                       <div className="flex gap-3">
                         <span className="font-bold shrink-0">{qIndex + 1}.</span>
                         <div className="w-full">
-                          <p className="text-base leading-relaxed mb-2">{q.question}</p>
+                          <p className="text-sm leading-snug mb-1.5">{q.question}</p>
                           
                           {section.type === "mcq" && q.options && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 font-sans ml-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-2 font-sans ml-2">
                               {q.options.map((opt, optIndex) => (
-                                <label key={optIndex} className="flex items-center gap-3 cursor-pointer group">
-                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isColor ? 'border-primary/40 group-hover:border-primary' : 'border-gray-400 group-hover:border-black'}`}>
-                                    <span className="text-[10px] font-bold opacity-0 group-hover:opacity-100">
+                                <label key={optIndex} className="flex items-center gap-2 cursor-pointer group">
+                                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isColor ? 'border-primary/40 group-hover:border-primary' : 'border-gray-400 group-hover:border-black'}`}>
+                                    <span className="text-[9px] font-bold opacity-0 group-hover:opacity-100">
                                       {String.fromCharCode(97 + optIndex)}
                                     </span>
                                   </div>
-                                  <span className="text-sm">{opt}</span>
+                                  <span className="text-xs">{opt}</span>
                                 </label>
                               ))}
                             </div>
                           )}
 
                           {q.answerSpaceLines > 0 && (
-                            <div className="space-y-1 mt-2 opacity-40">
+                            <div className="space-y-0.5 mt-1 opacity-40">
                               {Array.from({ length: section.type === "short_answer" ? Math.min(q.answerSpaceLines, 2) : q.answerSpaceLines }).map((_, i) => (
-                                <div key={i} className={`border-b border-dashed h-5 w-full ${isColor ? 'border-primary/50' : 'border-black'}`} />
+                                <div key={i} className={`border-b border-dashed h-4 w-full ${isColor ? 'border-primary/50' : 'border-black'}`} />
                               ))}
                             </div>
                           )}
@@ -317,7 +317,7 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
           ))}
         </div>
 
-        <div className="mt-16 pt-8 border-t border-gray-200 text-center text-sm text-gray-400 font-sans print-only">
+        <div className="mt-8 pt-4 border-t border-gray-200 text-center text-xs text-gray-400 font-sans print-only">
           Generated by Smart AI Worksheet Generator • {new Date().toLocaleDateString()}
         </div>
 

@@ -69,28 +69,28 @@ export default function WorksheetView() {
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
+        width: element.scrollWidth,
+        height: element.scrollHeight,
+        windowWidth: 794,
       });
 
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      const x = (pdfWidth - imgWidth * ratio) / 2;
+      const margin = 5;
+      const usableWidth = pdfWidth - margin * 2;
+      const ratio = usableWidth / canvas.width;
+      const scaledHeight = canvas.height * ratio;
 
-      let heightLeft = imgHeight * ratio;
-      let position = 0;
+      let yOffset = 0;
+      let page = 0;
 
-      pdf.addImage(imgData, "PNG", x, position, imgWidth * ratio, imgHeight * ratio);
-      heightLeft -= pdfHeight;
-
-      while (heightLeft > 0) {
-        position -= pdfHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", x, position, imgWidth * ratio, imgHeight * ratio);
-        heightLeft -= pdfHeight;
+      while (yOffset < scaledHeight) {
+        if (page > 0) pdf.addPage();
+        pdf.addImage(imgData, "PNG", margin, -yOffset, usableWidth, scaledHeight);
+        yOffset += pdfHeight;
+        page++;
       }
 
       const fileName = `QikWorksheet_${worksheet?.subject}_${worksheet?.topic}_${id}.pdf`;
