@@ -11,6 +11,8 @@ export const users = pgTable("users", {
   planExpiresAt: timestamp("plan_expires_at"),
   maxChildren: integer("max_children").notNull().default(1),
   worksheetsGenerated: integer("worksheets_generated").notNull().default(0),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

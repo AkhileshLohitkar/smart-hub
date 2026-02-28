@@ -1,12 +1,28 @@
-import { Link } from "wouter";
+import { useState } from "react";
+import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Brain, Printer, CheckCircle, Star, BookOpen, Users, Download, Sparkles, ArrowRight, Shield, Zap, Quote } from "lucide-react";
+import { Brain, Printer, CheckCircle, Star, BookOpen, Users, Download, Sparkles, ArrowRight, Shield, Zap, Quote, Loader2 } from "lucide-react";
 import logoImage from "@assets/IMG_6540_1772307045625.PNG";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useUser } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
-const plans = [
+interface StripePlan {
+  name: string;
+  price: string;
+  period: string;
+  children: string;
+  features: string[];
+  highlight: boolean;
+  badge: string;
+  planKey: string;
+}
+
+const plans: StripePlan[] = [
   {
     name: "Free",
     price: "₹0",
@@ -15,6 +31,7 @@ const plans = [
     features: ["5 worksheets total", "All subjects", "Print & download", "Basic support"],
     highlight: false,
     badge: "",
+    planKey: "",
   },
   {
     name: "Starter",
@@ -24,6 +41,7 @@ const plans = [
     features: ["Unlimited worksheets", "All boards & subjects", "Print & download", "Priority support"],
     highlight: false,
     badge: "",
+    planKey: "starter_monthly",
   },
   {
     name: "Starter Annual",
@@ -33,6 +51,7 @@ const plans = [
     features: ["Unlimited worksheets", "All boards & subjects", "Print & download", "Priority support", "Save ₹189/year"],
     highlight: true,
     badge: "Best Value",
+    planKey: "starter_annual",
   },
   {
     name: "Family",
@@ -42,6 +61,7 @@ const plans = [
     features: ["Unlimited worksheets", "Multi-child profiles", "All boards & subjects", "Priority support"],
     highlight: false,
     badge: "",
+    planKey: "family_monthly",
   },
   {
     name: "Family Annual",
@@ -51,6 +71,7 @@ const plans = [
     features: ["Unlimited worksheets", "Multi-child profiles", "All boards & subjects", "Premium support", "Save ₹469/year"],
     highlight: false,
     badge: "Popular",
+    planKey: "family_annual",
   },
   {
     name: "No Watermark",
@@ -60,6 +81,7 @@ const plans = [
     features: ["Unlimited worksheets", "No watermark on worksheets", "Clean print-ready output", "All boards & subjects", "Premium support"],
     highlight: true,
     badge: "Special",
+    planKey: "no_watermark",
   },
 ];
 
@@ -97,6 +119,45 @@ const features = [
 ];
 
 export default function Landing() {
+  const { data: user } = useUser();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+
+  const { data: stripeProducts } = useQuery({
+    queryKey: ["/api/stripe/products"],
+    enabled: !!user,
+  });
+
+  const handleCheckout = async (planKey: string) => {
+    if (!user) {
+      setLocation("/auth?tab=register");
+      return;
+    }
+
+    const products = (stripeProducts as any)?.products || [];
+    const product = products.find((p: any) => p.metadata?.plan_key === planKey);
+    const priceId = product?.prices?.[0]?.id;
+
+    if (!priceId) {
+      toast({ title: "Plan not available", description: "This plan is not set up yet. Please try again later.", variant: "destructive" });
+      return;
+    }
+
+    setCheckoutLoading(planKey);
+    try {
+      const res = await apiRequest("POST", "/api/stripe/checkout", { priceId });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      toast({ title: "Checkout failed", description: "Could not start checkout. Please try again.", variant: "destructive" });
+    } finally {
+      setCheckoutLoading(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-lg border-b border-border/50">
@@ -238,14 +299,30 @@ export default function Landing() {
                       </li>
                     ))}
                   </ul>
-                  <Link href="/auth?tab=register">
+                  {plan.planKey ? (
                     <Button
                       className={`w-full rounded-xl font-semibold ${plan.highlight ? 'bg-gradient-primary text-white hover:opacity-90' : ''}`}
                       variant={plan.highlight ? "default" : "outline"}
+                      onClick={() => handleCheckout(plan.planKey)}
+                      disabled={checkoutLoading === plan.planKey}
+                      data-testid={`button-checkout-${plan.planKey}`}
                     >
-                      {plan.price === "₹0" ? "Start Free" : "Choose Plan"}
+                      {checkoutLoading === plan.planKey ? (
+                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</>
+                      ) : (
+                        "Choose Plan"
+                      )}
                     </Button>
-                  </Link>
+                  ) : (
+                    <Link href="/auth?tab=register">
+                      <Button
+                        className="w-full rounded-xl font-semibold"
+                        variant="outline"
+                      >
+                        Start Free
+                      </Button>
+                    </Link>
+                  )}
                 </Card>
               </motion.div>
             ))}

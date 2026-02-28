@@ -28,6 +28,8 @@ Preferred communication style: Simple, everyday language.
   - `/children` — Children profile management (authenticated)
   - `/history` — Worksheet history (authenticated)
   - `/test-prep` — Test paper generator with marks schemes (authenticated)
+  - `/payment/success` — Stripe checkout success page (verifies session, updates plan)
+  - `/payment/cancel` — Stripe checkout cancellation page
 - **State Management**: `@tanstack/react-query` for server state, `react-hook-form` for form state
 - **UI Components**: shadcn/ui (new-york style) with Radix UI primitives, Tailwind CSS for styling
 - **Color Theme**: Instagram-inspired gradient (purple → pink → orange) using CSS custom properties; worksheet accent color is electric blue (#0066FF)
@@ -61,11 +63,20 @@ Preferred communication style: Simple, everyday language.
 - **ORM**: Drizzle ORM with `drizzle-zod` for automatic Zod schema generation
 - **Schema location**: `shared/schema.ts`
 - **Tables**:
-  - `users` — id, email, password (hashed), name, plan, planExpiresAt, maxChildren, worksheetsGenerated, createdAt
+  - `users` — id, email, password (hashed), name, plan, planExpiresAt, maxChildren, worksheetsGenerated, stripeCustomerId, stripeSubscriptionId, createdAt
   - `children` — id, userId, name, board, className, createdAt
   - `worksheets` — id, userId, className, board, subject, chapter, topic, difficulty, length, colorMode, worksheetType, content (JSON), rating, createdAt
   - `session` — created automatically by connect-pg-simple
 - **Migrations**: Managed via `drizzle-kit push`
+
+### Stripe Integration
+- **Payment Gateway**: Stripe via Replit integration (`stripe-replit-sync` package)
+- **Webhook**: Managed webhook auto-configured at `/api/stripe/webhook`; handles subscription lifecycle events (created, updated, deleted) to sync user plans
+- **Checkout Flow**: Landing page plan buttons → POST `/api/stripe/checkout` → Stripe Checkout → `/payment/success` (verifies session) or `/payment/cancel`
+- **Customer Portal**: POST `/api/stripe/portal` opens Stripe Customer Portal for subscription management
+- **Products API**: GET `/api/stripe/products` returns seeded products with prices
+- **Plan Config**: `server/planConfig.ts` maps `plan_key` metadata to app plan names and maxChildren
+- **Files**: `server/stripeClient.ts`, `server/webhookHandlers.ts`, `server/planConfig.ts`, `server/seed-stripe-products.ts`
 
 ### Subscription Plans
 - Free: ₹0, 5 worksheets total, 1 child

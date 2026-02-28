@@ -1,12 +1,15 @@
 import { db } from "./db";
 import { users, children, worksheets, type InsertUser, type User, type InsertChild, type Child, type InsertWorksheet, type WorksheetResponse } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByStripeCustomerId(stripeCustomerId: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserPlan(userId: number, plan: string, maxChildren: number, expiresAt: Date | null): Promise<User>;
+  updateUserStripeCustomerId(userId: number, stripeCustomerId: string): Promise<User>;
+  updateUserStripeSubscription(userId: number, stripeSubscriptionId: string | null): Promise<User>;
   incrementWorksheetCount(userId: number): Promise<void>;
   getChildren(userId: number): Promise<Child[]>;
   getChild(id: number): Promise<Child | undefined>;
@@ -16,6 +19,8 @@ export interface IStorage {
   createWorksheet(worksheet: InsertWorksheet, content: any, userId?: number): Promise<WorksheetResponse>;
   rateWorksheet(id: number, rating: number): Promise<WorksheetResponse>;
   getUserWorksheets(userId: number): Promise<WorksheetResponse[]>;
+  getStripeProducts(): Promise<any[]>;
+  getStripePricesForProduct(productId: string): Promise<any[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -40,6 +45,46 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return updated;
+  }
+
+  async getUserByStripeCustomerId(stripeCustomerId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.stripeCustomerId, stripeCustomerId));
+    return user;
+  }
+
+  async updateUserStripeCustomerId(userId: number, stripeCustomerId: string): Promise<User> {
+    const [updated] = await db.update(users)
+      .set({ stripeCustomerId })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async updateUserStripeSubscription(userId: number, stripeSubscriptionId: string | null): Promise<User> {
+    const [updated] = await db.update(users)
+      .set({ stripeSubscriptionId })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async getStripeProducts(): Promise<any[]> {
+    const result = await db.execute(
+      sql`SELECT p.id, p.name, p.description, p.metadata, p.active,
+              pr.id as price_id, pr.unit_amount, pr.currency, pr.recurring, pr.active as price_active, pr.metadata as price_metadata
+          FROM stripe.products p
+          LEFT JOIN stripe.prices pr ON pr.product = p.id AND pr.active = true
+          WHERE p.active = true
+          ORDER BY p.name, pr.unit_amount`
+    );
+    return result.rows;
+  }
+
+  async getStripePricesForProduct(productId: string): Promise<any[]> {
+    const result = await db.execute(
+      sql`SELECT * FROM stripe.prices WHERE product = ${productId} AND active = true`
+    );
+    return result.rows;
   }
 
   async incrementWorksheetCount(userId: number): Promise<void> {
