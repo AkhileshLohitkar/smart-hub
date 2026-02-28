@@ -176,10 +176,18 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
 
   return (
     <>
+      {showWatermark && (
+        <img
+          src={logoImage}
+          alt=""
+          className="hidden print-watermark object-contain select-none"
+          draggable={false}
+        />
+      )}
       <div className="bg-white text-black font-serif w-full max-w-4xl mx-auto min-h-[297mm] shadow-2xl p-6 md:p-10 rounded-sm print-a4 print:shadow-none print:m-0 print:p-6 relative overflow-hidden" id="worksheet-content">
         
         {showWatermark && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10" data-testid="watermark-overlay">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 print:hidden" data-testid="watermark-overlay">
             <img
               src={logoImage}
               alt="Qik Worksheet"

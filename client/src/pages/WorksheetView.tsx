@@ -55,6 +55,18 @@ export default function WorksheetView() {
     window.print();
   };
 
+  const addWatermarkToPage = (pdf: any, watermarkImg: string, pdfWidth: number, pdfHeight: number) => {
+    if (!showWatermark) return;
+    const wmSize = 120;
+    const wmX = (pdfWidth - wmSize) / 2;
+    const wmY = (pdfHeight - wmSize) / 2;
+    pdf.saveGraphicsState();
+    const gState = new (pdf as any).GState({ opacity: 0.06 });
+    pdf.setGState(gState);
+    pdf.addImage(watermarkImg, "PNG", wmX, wmY, wmSize, wmSize);
+    pdf.restoreGraphicsState();
+  };
+
   const handleDownload = async () => {
     if (!worksheetRef.current) return;
 
@@ -64,33 +76,77 @@ export default function WorksheetView() {
       const { jsPDF } = await import("jspdf");
 
       const element = worksheetRef.current;
+
+      const existingWatermarks = element.querySelectorAll('[data-testid="watermark-overlay"]');
+      existingWatermarks.forEach((el: Element) => (el as HTMLElement).style.display = 'none');
+
+      const a4WidthPx = 794;
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
-        width: element.scrollWidth,
-        height: element.scrollHeight,
-        windowWidth: 794,
+        windowWidth: a4WidthPx,
+        width: a4WidthPx,
       });
 
-      const imgData = canvas.toDataURL("image/png");
+      existingWatermarks.forEach((el: Element) => (el as HTMLElement).style.display = '');
+
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      const margin = 5;
+      const margin = 8;
       const usableWidth = pdfWidth - margin * 2;
-      const ratio = usableWidth / canvas.width;
-      const scaledHeight = canvas.height * ratio;
+      const scaleFactor = usableWidth / canvas.width;
+      const totalScaledHeight = canvas.height * scaleFactor;
 
-      let yOffset = 0;
-      let page = 0;
+      let watermarkDataUrl = "";
+      if (showWatermark) {
+        const wmImg = new Image();
+        wmImg.crossOrigin = "anonymous";
+        await new Promise<void>((resolve) => {
+          wmImg.onload = () => resolve();
+          wmImg.onerror = () => resolve();
+          wmImg.src = logoImage;
+        });
+        const wmCanvas = document.createElement("canvas");
+        wmCanvas.width = wmImg.naturalWidth || 200;
+        wmCanvas.height = wmImg.naturalHeight || 200;
+        const wmCtx = wmCanvas.getContext("2d");
+        if (wmCtx) {
+          wmCtx.drawImage(wmImg, 0, 0);
+          watermarkDataUrl = wmCanvas.toDataURL("image/png");
+        }
+      }
 
-      while (yOffset < scaledHeight) {
+      const usableHeight = pdfHeight - margin * 2;
+      const sourcePageHeightPx = usableHeight / scaleFactor;
+      const totalPages = Math.ceil(canvas.height / sourcePageHeightPx);
+
+      for (let page = 0; page < totalPages; page++) {
         if (page > 0) pdf.addPage();
-        pdf.addImage(imgData, "PNG", margin, -yOffset, usableWidth, scaledHeight);
-        yOffset += pdfHeight;
-        page++;
+
+        const sy = page * sourcePageHeightPx;
+        const sh = Math.min(sourcePageHeightPx, canvas.height - sy);
+        const sw = canvas.width;
+
+        const pageCanvas = document.createElement("canvas");
+        pageCanvas.width = sw;
+        pageCanvas.height = sh;
+        const ctx = pageCanvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, sw, sh);
+          ctx.drawImage(canvas, 0, sy, sw, sh, 0, 0, sw, sh);
+        }
+
+        const pageImgData = pageCanvas.toDataURL("image/png");
+        const renderedHeight = sh * scaleFactor;
+        pdf.addImage(pageImgData, "PNG", margin, margin, usableWidth, renderedHeight);
+
+        if (watermarkDataUrl) {
+          addWatermarkToPage(pdf, watermarkDataUrl, pdfWidth, pdfHeight);
+        }
       }
 
       const fileName = `QikWorksheet_${worksheet?.subject}_${worksheet?.topic}_${id}.pdf`;

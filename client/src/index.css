@@ -99,7 +99,7 @@
 
   @media print {
     @page {
-      margin: 1.5cm;
+      margin: 1cm;
       size: A4 portrait;
     }
     body {
@@ -118,12 +118,25 @@
       break-inside: avoid;
     }
     .print-a4 {
-      width: 210mm !important;
-      min-height: 297mm !important;
+      width: 100% !important;
+      min-height: auto !important;
       margin: 0 !important;
-      padding: 0 !important;
+      padding: 8mm !important;
       box-shadow: none !important;
       border: none !important;
+      max-width: none !important;
+    }
+    .print-watermark {
+      display: block !important;
+      position: fixed !important;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) !important;
+      width: 150mm !important;
+      height: 150mm !important;
+      opacity: 0.06 !important;
+      pointer-events: none !important;
+      z-index: 9999 !important;
     }
   }
 }
