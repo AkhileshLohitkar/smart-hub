@@ -26,9 +26,17 @@ export function useLogin() {
       const res = await apiRequest("POST", "/api/auth/login", data);
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       toast({ title: "Welcome back!", description: "You've been logged in successfully." });
+      try {
+        const childrenRes = await fetch("/api/children", { credentials: "include" });
+        const childrenData = await childrenRes.json();
+        if (!childrenData || childrenData.length === 0) {
+          setLocation("/children");
+          return;
+        }
+      } catch {}
       setLocation("/dashboard");
     },
     onError: (error: Error) => {
@@ -50,10 +58,10 @@ export function useRegister() {
       const res = await apiRequest("POST", "/api/auth/register", data);
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       toast({ title: "Account created!", description: "Welcome to Qik Worksheets." });
-      setLocation("/dashboard");
+      setLocation("/children");
     },
     onError: (error: Error) => {
       toast({

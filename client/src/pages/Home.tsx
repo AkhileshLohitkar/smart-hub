@@ -1,16 +1,19 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { WorksheetForm } from "@/components/WorksheetForm";
-import { Sparkles, Brain, Printer, CheckCircle, LogOut, User, Loader2, FileText, Users, ClipboardList } from "lucide-react";
-import { motion } from "framer-motion";
+import { Sparkles, Brain, Printer, CheckCircle, LogOut, User, Loader2, FileText, Users, ClipboardList, UserPlus, Crown, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useUser, useLogout } from "@/hooks/use-auth";
+import { useChildren } from "@/hooks/use-children";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import logoImage from "@assets/IMG_6540_1772307045625.PNG";
 
 export default function Home() {
   const { data: user, isLoading } = useUser();
+  const { data: childrenData, isLoading: childrenLoading } = useChildren();
   const logoutMutation = useLogout();
   const [, setLocation] = useLocation();
+  const [planBannerDismissed, setPlanBannerDismissed] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -97,6 +100,62 @@ export default function Home() {
         </div>
       </nav>
 
+      <AnimatePresence>
+        {!childrenLoading && user && (!childrenData || childrenData.length === 0) && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-200"
+          >
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-primary rounded-full p-2">
+                  <UserPlus className="w-4 h-4 text-white" />
+                </div>
+                <p className="text-sm font-medium text-purple-900">
+                  Add your child's profile to get started with personalized worksheets
+                </p>
+              </div>
+              <Link href="/children">
+                <Button size="sm" className="bg-gradient-primary text-white rounded-lg text-xs hover:opacity-90" data-testid="button-add-child-banner">
+                  Add Child Profile
+                </Button>
+              </Link>
+            </div>
+          </motion.div>
+        )}
+        {user && user.plan === "free" && !planBannerDismissed && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200"
+          >
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-r from-amber-400 to-orange-500 rounded-full p-2">
+                  <Crown className="w-4 h-4 text-white" />
+                </div>
+                <p className="text-sm font-medium text-amber-900">
+                  Upgrade your plan for unlimited worksheets and more child profiles
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link href="/#pricing">
+                  <Button size="sm" className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-xs hover:opacity-90" data-testid="button-upgrade-banner">
+                    View Plans
+                  </Button>
+                </Link>
+                <button onClick={() => setPlanBannerDismissed(true)} className="text-amber-400 hover:text-amber-600 p-1" data-testid="button-dismiss-plan-banner">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-24 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-start">
           <motion.div
@@ -120,19 +179,6 @@ export default function Home() {
             <p className="text-lg text-muted-foreground mb-10 leading-relaxed max-w-lg">
               Save hours of preparation time. Define your topic, curriculum, and difficulty level, and let our AI generate rigorous, print-ready practice materials instantly.
             </p>
-
-            {user && user.plan === "free" && (
-              <div className="mb-8 p-4 rounded-xl border-2 border-pink-200 bg-pink-50">
-                <p className="text-sm font-medium text-pink-800">
-                  Free Plan: {5 - (user.worksheetsGenerated || 0)} worksheets remaining
-                </p>
-                <Link href="/#pricing">
-                  <Button size="sm" className="mt-2 bg-gradient-primary text-white rounded-lg text-xs hover:opacity-90">
-                    Upgrade Now
-                  </Button>
-                </Link>
-              </div>
-            )}
 
             <div className="space-y-6">
               {features.map((feature, idx) => (
