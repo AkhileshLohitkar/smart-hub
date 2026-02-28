@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { WorksheetForm } from "@/components/WorksheetForm";
-import { Sparkles, Brain, Printer, CheckCircle, BookOpen, LogOut, User, Loader2, FileText, Users } from "lucide-react";
+import { Sparkles, Brain, Printer, CheckCircle, BookOpen, LogOut, User, Loader2, FileText, Users, ClipboardList } from "lucide-react";
 import { motion } from "framer-motion";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -69,6 +69,11 @@ export default function Home() {
                 <Link href="/history">
                   <Button variant="ghost" size="sm" data-testid="link-my-worksheets">
                     <FileText className="w-4 h-4 mr-1" /> My Worksheets
+                  </Button>
+                </Link>
+                <Link href="/test-prep">
+                  <Button variant="ghost" size="sm" data-testid="link-test-prep">
+                    <ClipboardList className="w-4 h-4 mr-1" /> Test Prep
                   </Button>
                 </Link>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">

@@ -41,6 +41,7 @@ interface WorksheetContent {
     position: "top-right" | "bottom-left" | "between-sections";
     altText: string;
   }[];
+  graphicEmojis?: string[];
   sections: ContentSection[];
   answerKey?: AnswerKeyEntry[];
 }
@@ -142,9 +143,12 @@ function MatchSection({ q, qIndex, isColor }: { q: ContentQuestion; qIndex: numb
   );
 }
 
+const YOUNG_CLASSES = ["Nursery", "KG 1", "KG 2", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5"];
+
 export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRenderProps) {
   const content = worksheet.content as unknown as WorksheetContent;
   const isColor = worksheet.colorMode === "color";
+  const isYoungClass = YOUNG_CLASSES.includes(worksheet.className);
 
   const GraphicPlaceholder = ({ graphic }: { graphic: any }) => {
     if (!isColor) return null;
@@ -179,7 +183,7 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
             <img
               src={logoImage}
               alt="Qik Worksheet"
-              className="w-[350px] h-[350px] object-contain opacity-[0.06] select-none"
+              className="w-[500px] h-[500px] object-contain opacity-[0.06] select-none"
               draggable={false}
             />
           </div>
@@ -196,10 +200,18 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
               {content.title || `${worksheet.subject}: ${worksheet.topic}`}
             </h1>
             <p className="text-gray-600 font-sans text-sm md:text-base uppercase tracking-wider">
-              {worksheet.board} • Grade: {worksheet.className} • {worksheet.difficulty}
+              {worksheet.board} • {worksheet.className} • {worksheet.difficulty}
               {worksheet.chapter && ` • ${worksheet.chapter}`}
             </p>
           </div>
+          
+          {isYoungClass && content.graphicEmojis && content.graphicEmojis.length > 0 && (
+            <div className="absolute -top-2 -right-2 flex gap-1" data-testid="emoji-header">
+              {content.graphicEmojis.slice(0, 3).map((emoji, i) => (
+                <span key={i} className="text-2xl" style={{ transform: `rotate(${(i - 1) * 15}deg)` }}>{emoji}</span>
+              ))}
+            </div>
+          )}
           
           <div className="hidden sm:block space-y-4 font-sans text-sm w-64">
             <div className="flex items-end gap-2">
@@ -250,6 +262,13 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
                 {isColor && content.graphics?.find(g => g.position === "between-sections" && content.sections.indexOf(section) % 2 === 0) && (
                   <div className="hidden md:block">
                     <GraphicPlaceholder graphic={content.graphics.find(g => g.position === "between-sections")} />
+                  </div>
+                )}
+                {isYoungClass && content.graphicEmojis && sIndex > 0 && sIndex % 2 === 0 && (
+                  <div className="flex gap-1 items-center" data-testid={`emoji-section-${sIndex}`}>
+                    {content.graphicEmojis.slice(0, 2).map((emoji, i) => (
+                      <span key={i} className="text-xl opacity-60">{emoji}</span>
+                    ))}
                   </div>
                 )}
               </div>

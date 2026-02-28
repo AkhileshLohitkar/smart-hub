@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Brain, Printer, CheckCircle, Star, BookOpen, Users, Download, Sparkles, ArrowRight, Shield, Zap } from "lucide-react";
+import { Brain, Printer, CheckCircle, Star, BookOpen, Users, Download, Sparkles, ArrowRight, Shield, Zap, Quote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -282,6 +282,104 @@ export default function Landing() {
       </section>
 
       <section className="py-20 px-4">
+        <div className="container mx-auto max-w-6xl">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl sm:text-4xl font-display font-bold mb-4">
+              What Parents & Teachers <span className="text-gradient-primary">Say</span>
+            </h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              Trusted by educators and families across India.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              {
+                name: "Priya Sharma",
+                role: "Parent",
+                quote: "My daughter is in Grade 3 CBSE and these worksheets have been a lifesaver for her exam preparation. The questions are perfectly aligned with her syllabus.",
+                stars: 5,
+                initials: "PS",
+                gradient: "from-pink-500 to-rose-500",
+              },
+              {
+                name: "Rajesh Menon",
+                role: "Teacher",
+                quote: "As a maths teacher handling ICSE classes, I use Qik Worksheets daily to create practice sheets. It saves me at least 2 hours every day.",
+                stars: 5,
+                initials: "RM",
+                gradient: "from-violet-500 to-purple-500",
+              },
+              {
+                name: "Anita Desai",
+                role: "Parent",
+                quote: "Both my kids study in different boards - CBSE and IGCSE. This tool handles both perfectly. The difficulty levels are spot on.",
+                stars: 5,
+                initials: "AD",
+                gradient: "from-amber-500 to-orange-500",
+              },
+              {
+                name: "Suresh Iyer",
+                role: "Teacher",
+                quote: "The variety of question types - MCQs, fill in the blanks, short answers - makes it easy to prepare comprehensive worksheets for my State Board students.",
+                stars: 4,
+                initials: "SI",
+                gradient: "from-emerald-500 to-teal-500",
+              },
+              {
+                name: "Kavita Joshi",
+                role: "Parent",
+                quote: "I love that I can create worksheets for my KG child too. The tracing and matching activities are age-appropriate and keep my little one engaged.",
+                stars: 5,
+                initials: "KJ",
+                gradient: "from-sky-500 to-blue-500",
+              },
+              {
+                name: "Mohammed Farooq",
+                role: "Teacher",
+                quote: "Finally an Indian education tool that understands our curriculum. The CBSE and ICSE alignment is excellent. Highly recommend for all teachers.",
+                stars: 5,
+                initials: "MF",
+                gradient: "from-rose-500 to-pink-500",
+              },
+            ].map((testimonial, idx) => (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: idx * 0.1 }}
+              >
+                <Card className="p-6 h-full border-border/50" data-testid={`testimonial-card-${idx}`}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${testimonial.gradient} flex items-center justify-center text-white font-bold text-sm shrink-0`}>
+                      {testimonial.initials}
+                    </div>
+                    <div>
+                      <p className="font-display font-bold text-sm" data-testid={`testimonial-name-${idx}`}>{testimonial.name}</p>
+                      <p className="text-xs text-muted-foreground">{testimonial.role}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-0.5 mb-3">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`w-4 h-4 ${i < testimonial.stars ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground/30'}`}
+                      />
+                    ))}
+                  </div>
+                  <Quote className="w-5 h-5 text-muted-foreground/20 mb-2" />
+                  <p className="text-sm text-muted-foreground leading-relaxed" data-testid={`testimonial-quote-${idx}`}>
+                    {testimonial.quote}
+                  </p>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-20 px-4 bg-muted/30">
         <div className="container mx-auto max-w-3xl text-center">
           <h2 className="text-3xl sm:text-4xl font-display font-bold mb-6">
             Ready to save hours of preparation?

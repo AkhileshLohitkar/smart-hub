@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Sparkles, BookOpen, LayoutList, Settings2 } from "lucide-react";
+import { Loader2, Sparkles, BookOpen, LayoutList, Settings2, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useGenerateWorksheet } from "@/hooks/use-worksheets";
+import { useChildren } from "@/hooks/use-children";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { insertWorksheetSchema } from "@shared/schema";
@@ -30,7 +31,7 @@ import { insertWorksheetSchema } from "@shared/schema";
 // Form schema based on the backend schema but forcing strings for selects
 // We extend the insert schema and coerce length for numbers
 const formSchema = insertWorksheetSchema.extend({
-  length: z.coerce.number().min(1).max(50),
+  length: z.coerce.number().min(1).max(30),
   chapter: z.string().optional(),
 });
 
@@ -40,6 +41,8 @@ export function WorksheetForm() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const generateMutation = useGenerateWorksheet();
+  const { data: children } = useChildren();
+  const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -54,6 +57,28 @@ export function WorksheetForm() {
       colorMode: "bw",
     },
   });
+
+  const isChildLocked = selectedChildId !== null;
+
+  useEffect(() => {
+    if (selectedChildId && children) {
+      const child = children.find((c) => c.id === selectedChildId);
+      if (child) {
+        form.setValue("className", child.className);
+        form.setValue("board", child.board);
+      }
+    }
+  }, [selectedChildId, children, form]);
+
+  const handleChildSelect = (value: string) => {
+    if (value === "__clear__") {
+      setSelectedChildId(null);
+      form.setValue("className", "");
+      form.setValue("board", "");
+      return;
+    }
+    setSelectedChildId(Number(value));
+  };
 
   const [subject, className] = form.watch(["subject", "className"]);
 
@@ -102,6 +127,47 @@ export function WorksheetForm() {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="p-6 md:p-8 space-y-8">
           
+          {children && children.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-foreground/80 flex items-center gap-2">
+                <UserRound className="w-4 h-4 text-primary/70" /> Select Child
+              </label>
+              <div className="flex items-center gap-2">
+                <Select
+                  value={selectedChildId !== null ? String(selectedChildId) : ""}
+                  onValueChange={handleChildSelect}
+                >
+                  <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl flex-1" data-testid="select-child">
+                    <SelectValue placeholder="Choose a child (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {children.map((child) => (
+                      <SelectItem key={child.id} value={String(child.id)} data-testid={`option-child-${child.id}`}>
+                        {child.name} — {child.className}, {child.board}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {isChildLocked && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleChildSelect("__clear__")}
+                    data-testid="button-clear-child"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+              {isChildLocked && (
+                <p className="text-xs text-muted-foreground" data-testid="text-child-locked">
+                  Grade and board are set from the selected child's profile.
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Grade / Class */}
             <FormField
@@ -112,13 +178,16 @@ export function WorksheetForm() {
                   <FormLabel className="text-sm font-semibold text-foreground/80 flex items-center gap-2">
                     <BookOpen className="w-4 h-4 text-primary/70" /> Grade Level
                   </FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isChildLocked}>
                     <FormControl>
-                      <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl">
+                      <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-grade">
                         <SelectValue placeholder="Select Grade" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      <SelectItem value="Nursery">Nursery</SelectItem>
+                      <SelectItem value="KG 1">KG 1</SelectItem>
+                      <SelectItem value="KG 2">KG 2</SelectItem>
                       <SelectItem value="Grade 1">Grade 1</SelectItem>
                       <SelectItem value="Grade 2">Grade 2</SelectItem>
                       <SelectItem value="Grade 3">Grade 3</SelectItem>
@@ -146,9 +215,9 @@ export function WorksheetForm() {
                   <FormLabel className="text-sm font-semibold text-foreground/80 flex items-center gap-2">
                     <LayoutList className="w-4 h-4 text-primary/70" /> Curriculum Board
                   </FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isChildLocked}>
                     <FormControl>
-                      <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl">
+                      <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-board">
                         <SelectValue placeholder="Select Board" />
                       </SelectTrigger>
                     </FormControl>
@@ -284,7 +353,7 @@ export function WorksheetForm() {
                     <Input 
                       type="number"
                       min={1}
-                      max={50}
+                      max={30}
                       className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl px-4"
                       {...field} 
                     />

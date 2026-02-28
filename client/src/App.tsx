@@ -11,6 +11,7 @@ import Home from "@/pages/Home";
 import WorksheetView from "@/pages/WorksheetView";
 import History from "@/pages/History";
 import Children from "@/pages/Children";
+import TestPrep from "@/pages/TestPrep";
 
 function Router() {
   return (
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/worksheet/:id" component={WorksheetView} />
       <Route path="/history" component={History} />
       <Route path="/children" component={Children} />
+      <Route path="/test-prep" component={TestPrep} />
       <Route component={NotFound} />
     </Switch>
   );

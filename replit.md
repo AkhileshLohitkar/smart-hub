@@ -27,6 +27,7 @@ Preferred communication style: Simple, everyday language.
   - `/worksheet/:id` — Worksheet view with rating & download
   - `/children` — Children profile management (authenticated)
   - `/history` — Worksheet history (authenticated)
+  - `/test-prep` — Test paper generator with marks schemes (authenticated)
 - **State Management**: `@tanstack/react-query` for server state, `react-hook-form` for form state
 - **UI Components**: shadcn/ui (new-york style) with Radix UI primitives, Tailwind CSS for styling
 - **Color Theme**: Instagram-inspired gradient (purple → pink → orange) using CSS custom properties
@@ -36,7 +37,9 @@ Preferred communication style: Simple, everyday language.
 - **PDF Download**: Uses `html2canvas` + `jspdf` for direct PDF download
 - **Star Rating**: Rating popup dialog appears on first worksheet view; custom StarRating component
 - **Answer Key**: Compact answer sheet rendered below worksheet with page break for printing
-- **Graphics**: AI-generated worksheets include descriptions for minimalist, colorful graphics
+- **Graphics**: AI-generated worksheets include descriptions for minimalist, colorful graphics; emoji decorations for Nursery/KG/Grade 1-5
+- **Watermark**: Logo watermark on all worksheets; hidden for "no_watermark" plan users
+- **Child Selector**: WorksheetForm and TestPrep auto-fill grade/board from selected child profile
 - **Fonts**: Inter (sans), Outfit (display), Lora (serif)
 - **Path aliases**: `@/` maps to `client/src/`, `@shared/` maps to `shared/`
 
