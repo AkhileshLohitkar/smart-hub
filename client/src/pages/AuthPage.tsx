@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Link, useLocation, useSearch } from "wouter";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import logoImage from "@assets/IMG_6540_1772307045625.PNG";
+import logoImage from "@assets/IMG_6540_1772322623564.PNG";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";

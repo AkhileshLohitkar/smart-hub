@@ -42,7 +42,7 @@ Preferred communication style: Simple, everyday language.
 - **Graphics**: AI-generated worksheets include descriptions for minimalist, colorful graphics; emoji decorations for Nursery/KG/Grade 1-5
 - **Watermark**: Logo watermark on all worksheets; hidden for "no_watermark" plan users
 - **Child Selector**: WorksheetForm and TestPrep auto-fill grade/board from selected child profile
-- **Logo**: Qik Worksheet logo (`@assets/IMG_6540_1772307045625.PNG`) shown in nav bars across all pages
+- **Logo**: Qik Worksheet logo (`@assets/IMG_6540_1772322623564.PNG`) shown in nav bars across all pages, and as watermark on worksheets
 - **Fonts**: Inter (sans), Outfit (display), Lora (serif)
 - **Path aliases**: `@/` maps to `client/src/`, `@shared/` maps to `shared/`
 

@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, User, Loader2, Plus, Star, FileText, Calendar, ClipboardList } from "lucide-react";
 import type { Worksheet } from "@shared/schema";
-import logoImage from "@assets/IMG_6540_1772307045625.PNG";
+import logoImage from "@assets/IMG_6540_1772322623564.PNG";
 
 export default function History() {
   const { data: user, isLoading: userLoading } = useUser();

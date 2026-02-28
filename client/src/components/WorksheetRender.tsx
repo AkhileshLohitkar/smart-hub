@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Worksheet } from "@shared/schema";
 import { CheckSquare, Type, ListOrdered, Edit3, Link as LinkIcon, Sparkles } from "lucide-react";
-import logoImage from "@assets/IMG_6540_1772304387045.PNG";
+import logoImage from "@assets/IMG_6540_1772322623564.PNG";
 
 const ACCENT = {
   text: "text-[#0066FF]",

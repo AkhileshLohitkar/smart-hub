@@ -4,7 +4,7 @@ import { CheckCircle, ArrowRight, Sparkles, Crown, Star, Loader2 } from "lucide-
 import { Button } from "@/components/ui/button";
 import { queryClient } from "@/lib/queryClient";
 import { useUser } from "@/hooks/use-auth";
-import logoImage from "@assets/IMG_6540_1772307045625.PNG";
+import logoImage from "@assets/IMG_6540_1772322623564.PNG";
 import { motion } from "framer-motion";
 
 const planDetails: Record<string, { label: string; perks: string[] }> = {

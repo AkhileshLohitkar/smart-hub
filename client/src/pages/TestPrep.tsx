@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, Sparkles, BookOpen, LayoutList, Settings2, Plus, X, ClipboardList, LogOut, User, FileText, Users, Home as HomeIcon } from "lucide-react";
-import logoImage from "@assets/IMG_6540_1772307045625.PNG";
+import logoImage from "@assets/IMG_6540_1772322623564.PNG";
 import { Button } from "@/components/ui/button";
 import {
   Form,

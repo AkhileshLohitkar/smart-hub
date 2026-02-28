@@ -6,7 +6,7 @@ import { useUser, useLogout } from "@/hooks/use-auth";
 import { useChildren } from "@/hooks/use-children";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
-import logoImage from "@assets/IMG_6540_1772307045625.PNG";
+import logoImage from "@assets/IMG_6540_1772322623564.PNG";
 
 const PLAN_LABELS: Record<string, string> = {
   free: "Free",

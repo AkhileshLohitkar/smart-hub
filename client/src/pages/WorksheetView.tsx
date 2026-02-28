@@ -5,7 +5,7 @@ import { useUser } from "@/hooks/use-auth";
 import { WorksheetRender } from "@/components/WorksheetRender";
 import { StarRating } from "@/components/StarRating";
 import { ArrowLeft, Printer, Download, Loader2, MessageSquare } from "lucide-react";
-import logoImage from "@assets/IMG_6540_1772307045625.PNG";
+import logoImage from "@assets/IMG_6540_1772322623564.PNG";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
