@@ -145,7 +145,7 @@ export default function WorksheetView() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex items-center gap-2">
-              <img src={logoImage} alt="Qik Worksheet" className="w-8 h-8 rounded-md object-contain" data-testid="logo-image" />
+              <img src={logoImage} alt="Qik Worksheet" className="w-10 h-10 rounded-md object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
               <div>
                 <h1 className="font-display font-bold text-sm hidden sm:block">
                   {worksheet.subject} Worksheet

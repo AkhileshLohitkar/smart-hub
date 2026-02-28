@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Sparkles, BookOpen, LayoutList, Settings2, UserRound, X } from "lucide-react";
+import { Loader2, Sparkles, BookOpen, LayoutList, Settings2, UserRound, X, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -27,9 +27,19 @@ import { useChildren } from "@/hooks/use-children";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { insertWorksheetSchema } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
 
-// Form schema based on the backend schema but forcing strings for selects
-// We extend the insert schema and coerce length for numbers
+const QUESTION_TYPES = [
+  { id: "mcq", label: "Multiple Choice (MCQ)" },
+  { id: "fill_blanks", label: "Fill in the Blanks" },
+  { id: "true_false", label: "True or False" },
+  { id: "one_word", label: "One Word Answers" },
+  { id: "short_answer", label: "Short Answers" },
+  { id: "long_answer", label: "Long Answers" },
+  { id: "match", label: "Match the Following" },
+  { id: "identify_picture", label: "Identify from Picture" },
+] as const;
+
 const formSchema = insertWorksheetSchema.extend({
   length: z.coerce.number().min(1).max(30),
   chapter: z.string().optional(),
@@ -43,6 +53,7 @@ export function WorksheetForm() {
   const generateMutation = useGenerateWorksheet();
   const { data: children } = useChildren();
   const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
+  const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<string[]>([]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -89,18 +100,38 @@ export function WorksheetForm() {
 
   const topics = getTopicsForSubject(subject, className);
 
+  const toggleQuestionType = (typeId: string) => {
+    setSelectedQuestionTypes(prev =>
+      prev.includes(typeId)
+        ? prev.filter(t => t !== typeId)
+        : [...prev, typeId]
+    );
+  };
+
   const onSubmit = async (data: FormValues) => {
     try {
-      const result = await generateMutation.mutateAsync(data);
+      const payload = {
+        ...data,
+        questionTypes: selectedQuestionTypes.length > 0 ? selectedQuestionTypes : undefined,
+      };
+      const res = await apiRequest("POST", "/api/worksheets/generate", payload);
+      const result = await res.json();
       toast({
         title: "Success!",
         description: "Your worksheet has been generated successfully.",
       });
       setLocation(`/worksheet/${result.id}`);
     } catch (error: any) {
+      let errorMsg = "An unexpected error occurred.";
+      try {
+        const parsed = JSON.parse(error.message.split(": ").slice(1).join(": "));
+        errorMsg = parsed.message || errorMsg;
+      } catch {
+        errorMsg = error.message || errorMsg;
+      }
       toast({
         title: "Generation Failed",
-        description: error.message || "An unexpected error occurred.",
+        description: errorMsg,
         variant: "destructive",
       });
     }
@@ -313,6 +344,35 @@ export function WorksheetForm() {
                 </FormItem>
               )}
             />
+
+            <div className="col-span-1 md:col-span-2 space-y-3">
+              <label className="text-sm font-semibold text-foreground/80 flex items-center gap-2">
+                <CheckSquare className="w-4 h-4 text-primary/70" /> Question Types
+                <span className="text-xs font-normal text-muted-foreground">(select one or more, or leave empty for auto)</span>
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {QUESTION_TYPES.map((qt) => (
+                  <button
+                    key={qt.id}
+                    type="button"
+                    onClick={() => toggleQuestionType(qt.id)}
+                    className={`px-3 py-2.5 text-xs font-medium rounded-xl border-2 transition-all duration-200 text-left ${
+                      selectedQuestionTypes.includes(qt.id)
+                        ? "border-primary bg-primary/10 text-primary shadow-sm"
+                        : "border-border bg-background text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                    }`}
+                    data-testid={`toggle-qtype-${qt.id}`}
+                  >
+                    {qt.label}
+                  </button>
+                ))}
+              </div>
+              {selectedQuestionTypes.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {selectedQuestionTypes.length} type{selectedQuestionTypes.length !== 1 ? "s" : ""} selected
+                </p>
+              )}
+            </div>
 
             {/* Difficulty */}
             <FormField

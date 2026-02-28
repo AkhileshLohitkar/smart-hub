@@ -21,7 +21,10 @@ export async function registerRoutes(
         return res.status(401).json({ message: "Please log in to generate worksheets" });
       }
 
-      const input = api.worksheets.generate.input.parse(req.body);
+      const rawBody = req.body;
+      const questionTypes: string[] = rawBody.questionTypes || [];
+      const { questionTypes: _qt, ...worksheetBody } = rawBody;
+      const input = api.worksheets.generate.input.parse(worksheetBody);
       const userId = req.user.id;
 
       const user = await storage.getUser(userId);
@@ -31,6 +34,21 @@ export async function registerRoutes(
 
       const isYoungClass = ["Nursery", "KG 1", "KG 2", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5"].includes(input.className);
 
+      const questionTypeMap: Record<string, string> = {
+        mcq: "mcq (Multiple Choice Questions with 4 options)",
+        fill_blanks: "fill_blanks (Fill in the Blanks)",
+        true_false: "true_false (True or False statements - use mcq type with options ['True', 'False'])",
+        one_word: "one_word (One Word Answer questions - use short_answer type with answerSpaceLines: 1)",
+        short_answer: "short_answer (Short Answer Questions)",
+        long_answer: "long_answer (Long Answer Questions)",
+        match: "match (Match the Following with matchPairs)",
+        identify_picture: "identify_picture (Identify from Picture - describe a picture scenario and ask to identify, use short_answer type)",
+      };
+
+      const requestedTypes = questionTypes.length > 0
+        ? `\nREQUIRED QUESTION TYPES: The worksheet MUST include sections for ONLY these question types: ${questionTypes.map(t => questionTypeMap[t] || t).join(", ")}. Distribute the questions across these types.`
+        : "";
+
       const prompt = `Generate a printable educational worksheet with the following requirements:
 Class/Standard: ${input.className}
 Education Board: ${input.board}
@@ -38,7 +56,7 @@ Subject: ${input.subject}
 Chapter: ${input.chapter || "Not specified"}
 Topic: ${input.topic}
 Difficulty: ${input.difficulty}
-Approximate Number of questions: ${Math.min(input.length, 30)}
+Approximate Number of questions: ${Math.min(input.length, 30)}${requestedTypes}
 
 The output must be strictly in JSON format matching this structure:
 {
@@ -84,12 +102,15 @@ IMPORTANT RULES:
 4. For "short_answer" type: set answerSpaceLines to 1-2 max (keep compact).
 5. For "long_answer" type: set answerSpaceLines to 3-4 max.
 6. For "mcq" type: set answerSpaceLines to 0.
-7. Generate a COMPLETE answerKey for ALL questions in ALL sections. The answer field should contain the correct answer text.
-8. Make the worksheet compact and well-organized to fit maximum content on A4 paper.
-9. Ensure questions are strictly aligned with the specified board syllabus and appropriate for the class level.
-10. Maximum number of questions is 30. Do not exceed this limit.
-${isYoungClass ? `11. This is for a YOUNG LEARNER (${input.className}). Include a "graphicEmojis" array with 3-5 fun, relevant emoji characters that match the topic (e.g. animals 🐕🐈, fruits 🍎🍌, shapes 🔵🔺). These will be displayed as decorative elements.
-12. For Nursery, KG 1, and KG 2 classes: Focus on age-appropriate activities like tracing, coloring prompts, simple matching, picture identification, basic counting (1-20), letter recognition, number recognition, and simple patterns. Use very simple, child-friendly language. Keep questions short and visual.` : ''}`;
+7. For "true_false" type: use "mcq" as the section type with options ["True", "False"] only.
+8. For "one_word" type: use "short_answer" as the section type with title indicating "One Word Answer" and answerSpaceLines: 1.
+9. For "identify_picture" type: use "short_answer" as the section type, describe a vivid picture/scene in the question and ask students to identify elements from it.
+10. Generate a COMPLETE answerKey for ALL questions in ALL sections. The answer field should contain the correct answer text.
+11. Make the worksheet compact and well-organized to fit maximum content on A4 paper.
+12. Ensure questions are strictly aligned with the specified board syllabus and appropriate for the class level.
+13. Maximum number of questions is 30. Do not exceed this limit.
+${isYoungClass ? `14. This is for a YOUNG LEARNER (${input.className}). Include a "graphicEmojis" array with 3-5 fun, relevant emoji characters that match the topic (e.g. animals 🐕🐈, fruits 🍎🍌, shapes 🔵🔺). These will be displayed as decorative elements.
+15. For Nursery, KG 1, and KG 2 classes: Focus on age-appropriate activities like tracing, coloring prompts, simple matching, picture identification, basic counting (1-20), letter recognition, number recognition, and simple patterns. Use very simple, child-friendly language. Keep questions short and visual.` : ''}`;
 
       const response = await openai.chat.completions.create({
         model: "gpt-5.1",

@@ -92,6 +92,11 @@
     background-clip: text;
   }
 
+  .logo-vibrant {
+    mix-blend-mode: multiply;
+    filter: contrast(1.15) saturate(1.3);
+  }
+
   @media print {
     @page {
       margin: 1.5cm;
