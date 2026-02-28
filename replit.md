@@ -69,14 +69,14 @@ Preferred communication style: Simple, everyday language.
   - `session` — created automatically by connect-pg-simple
 - **Migrations**: Managed via `drizzle-kit push`
 
-### Stripe Integration
-- **Payment Gateway**: Stripe via Replit integration (`stripe-replit-sync` package)
-- **Webhook**: Managed webhook auto-configured at `/api/stripe/webhook`; handles subscription lifecycle events (created, updated, deleted) to sync user plans
-- **Checkout Flow**: Landing page plan buttons → POST `/api/stripe/checkout` → Stripe Checkout → `/payment/success` (verifies session) or `/payment/cancel`
-- **Customer Portal**: POST `/api/stripe/portal` opens Stripe Customer Portal for subscription management
-- **Products API**: GET `/api/stripe/products` returns seeded products with prices
-- **Plan Config**: `server/planConfig.ts` maps `plan_key` metadata to app plan names and maxChildren
-- **Files**: `server/stripeClient.ts`, `server/webhookHandlers.ts`, `server/planConfig.ts`, `server/seed-stripe-products.ts`
+### Razorpay Integration
+- **Payment Gateway**: Razorpay via `razorpay` npm package with API keys stored as environment secrets (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`)
+- **Checkout Flow**: Landing page plan buttons → POST `/api/razorpay/create-order` → Razorpay checkout modal (in-page) → POST `/api/razorpay/verify-payment` (server-side signature verification) → `/payment/success`
+- **Plans API**: GET `/api/razorpay/plans` returns hardcoded plan list; GET `/api/razorpay/key` returns publishable key
+- **Subscription Status**: GET `/api/razorpay/subscription` returns current user's plan and expiry
+- **Signature Verification**: HMAC-SHA256 verification of `razorpay_order_id|razorpay_payment_id` against `razorpay_signature`
+- **Plan Config**: `server/planConfig.ts` maps `plan_key` to app plan names and maxChildren
+- **Files**: `server/razorpayClient.ts`, `server/planConfig.ts`
 
 ### Subscription Plans
 - Free: ₹0, 5 worksheets total, 1 child

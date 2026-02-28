@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Brain, Printer, CheckCircle, Star, BookOpen, Users, Download, Sparkles, ArrowRight, Shield, Zap, Quote, Loader2 } from "lucide-react";
@@ -7,11 +7,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useUser } from "@/hooks/use-auth";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-interface StripePlan {
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
+interface PlanInfo {
   name: string;
   price: string;
   period: string;
@@ -22,7 +27,7 @@ interface StripePlan {
   planKey: string;
 }
 
-const plans: StripePlan[] = [
+const plans: PlanInfo[] = [
   {
     name: "Free",
     price: "₹0",
@@ -118,45 +123,99 @@ const features = [
   },
 ];
 
+function loadRazorpayScript(): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
 export default function Landing() {
   const { data: user } = useUser();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
 
-  const { data: stripeProducts } = useQuery({
-    queryKey: ["/api/stripe/products"],
-    enabled: !!user,
-  });
-
-  const handleCheckout = async (planKey: string) => {
+  const handleCheckout = useCallback(async (planKey: string) => {
     if (!user) {
       setLocation("/auth?tab=register");
       return;
     }
 
-    const products = (stripeProducts as any)?.products || [];
-    const product = products.find((p: any) => p.metadata?.plan_key === planKey);
-    const priceId = product?.prices?.[0]?.id;
-
-    if (!priceId) {
-      toast({ title: "Plan not available", description: "This plan is not set up yet. Please try again later.", variant: "destructive" });
-      return;
-    }
-
     setCheckoutLoading(planKey);
     try {
-      const res = await apiRequest("POST", "/api/stripe/checkout", { priceId });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
+      const loaded = await loadRazorpayScript();
+      if (!loaded) {
+        toast({ title: "Error", description: "Could not load payment gateway. Please try again.", variant: "destructive" });
+        setCheckoutLoading(null);
+        return;
       }
-    } catch (err) {
+
+      const orderRes = await apiRequest("POST", "/api/razorpay/create-order", { planKey });
+      const orderData = await orderRes.json();
+
+      if (!orderData.orderId) {
+        toast({ title: "Error", description: orderData.message || "Could not create order.", variant: "destructive" });
+        setCheckoutLoading(null);
+        return;
+      }
+
+      const keyRes = await apiRequest("GET", "/api/razorpay/key");
+      const keyData = await keyRes.json();
+
+      const options = {
+        key: keyData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: "Qik Worksheets",
+        description: `${orderData.planName} Subscription`,
+        order_id: orderData.orderId,
+        handler: async (response: any) => {
+          try {
+            const verifyRes = await apiRequest("POST", "/api/razorpay/verify-payment", {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            const verifyData = await verifyRes.json();
+            if (verifyData.success) {
+              queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+              setLocation(`/payment/success?plan=${orderData.planName}`);
+            } else {
+              toast({ title: "Verification failed", description: "Payment could not be verified.", variant: "destructive" });
+            }
+          } catch {
+            toast({ title: "Error", description: "Payment verification failed.", variant: "destructive" });
+          }
+        },
+        prefill: {
+          name: user.name,
+          email: user.email,
+        },
+        theme: {
+          color: "#8B5CF6",
+        },
+        modal: {
+          ondismiss: () => {
+            setCheckoutLoading(null);
+          },
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
+    } catch {
       toast({ title: "Checkout failed", description: "Could not start checkout. Please try again.", variant: "destructive" });
-    } finally {
       setCheckoutLoading(null);
     }
-  };
+  }, [user, setLocation, toast]);
 
   return (
     <div className="min-h-screen bg-background">

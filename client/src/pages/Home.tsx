@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { WorksheetForm } from "@/components/WorksheetForm";
 import { Sparkles, Brain, Printer, CheckCircle, LogOut, User, Loader2, FileText, Users, ClipboardList, UserPlus, Crown, X, CreditCard } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useChildren } from "@/hooks/use-children";
@@ -16,23 +14,6 @@ export default function Home() {
   const logoutMutation = useLogout();
   const [, setLocation] = useLocation();
   const [planBannerDismissed, setPlanBannerDismissed] = useState(false);
-  const { toast } = useToast();
-  const [portalLoading, setPortalLoading] = useState(false);
-
-  const handleManageSubscription = async () => {
-    setPortalLoading(true);
-    try {
-      const res = await apiRequest("POST", "/api/stripe/portal");
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      }
-    } catch {
-      toast({ title: "Error", description: "Could not open subscription portal. Please try again.", variant: "destructive" });
-    } finally {
-      setPortalLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -98,16 +79,16 @@ export default function Home() {
                   </Button>
                 </Link>
                 {user.plan !== "free" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleManageSubscription}
-                    disabled={portalLoading}
-                    data-testid="button-manage-subscription"
-                  >
-                    {portalLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <CreditCard className="w-4 h-4 mr-1" />}
-                    Manage Plan
-                  </Button>
+                  <Link href="/#pricing">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      data-testid="button-manage-subscription"
+                    >
+                      <CreditCard className="w-4 h-4 mr-1" />
+                      My Plan
+                    </Button>
+                  </Link>
                 )}
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <User className="w-4 h-4" />

@@ -13,6 +13,8 @@ export const users = pgTable("users", {
   worksheetsGenerated: integer("worksheets_generated").notNull().default(0),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
+  razorpayCustomerId: text("razorpay_customer_id"),
+  razorpaySubscriptionId: text("razorpay_subscription_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
