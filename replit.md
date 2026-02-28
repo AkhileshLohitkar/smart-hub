@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is an AI-powered educational worksheet generator app. Users select a class/standard, education board (e.g., CBSE, ICSE), subject, topic, difficulty level, and desired number of questions. The app uses OpenAI to generate curriculum-aligned, print-ready worksheets. Generated worksheets are stored in a PostgreSQL database and can be viewed and printed directly from the browser using `window.print()` with `@media print` CSS styling.
+**Qik Worksheets** — an AI-powered educational worksheet generator app. Users select a class/standard, education board (e.g., CBSE, ICSE), subject, chapter, topic, difficulty level, and desired number of questions. The app uses OpenAI to generate curriculum-aligned, print-ready worksheets. Generated worksheets are stored in a PostgreSQL database and can be viewed, rated, downloaded as PDF, and printed directly from the browser.
 
 The app targets Indian education boards up to Class 10, generating different question types (MCQ, fill-in-the-blanks, short answer, long answer, matching) with proper formatting for A4 printing.
 
@@ -21,65 +21,79 @@ Preferred communication style: Simple, everyday language.
 ### Frontend (`client/src/`)
 - **Framework**: React with TypeScript, built with Vite
 - **Routing**: `wouter` (lightweight client-side router)
+  - `/` — Landing page (public)
+  - `/auth` — Login / Registration page
+  - `/dashboard` — Worksheet generator (authenticated)
+  - `/worksheet/:id` — Worksheet view with rating & download
 - **State Management**: `@tanstack/react-query` for server state, `react-hook-form` for form state
 - **UI Components**: shadcn/ui (new-york style) with Radix UI primitives, Tailwind CSS for styling
+- **Color Theme**: Instagram-inspired gradient (purple → pink → orange) using CSS custom properties
 - **Animations**: `framer-motion` for page transitions
 - **Validation**: Zod schemas shared between client and server via `@hookform/resolvers`
-- **Print Support**: Uses `@media print` CSS and `window.print()` for generating printable worksheets — no PDF library needed
-- **Graphics**: AI-generated worksheets include descriptions for minimalist, colorful graphics that are rendered as placeholders in color mode.
-- **Fonts**: Inter (sans), Outfit (display), Lora (serif) — configured via CSS variables `--font-sans`, `--font-display`, `--font-serif`
+- **Print Support**: Uses `@media print` CSS and `window.print()` for generating printable worksheets
+- **PDF Download**: Uses `html2canvas` + `jspdf` for direct PDF download
+- **Star Rating**: Custom StarRating component for worksheet feedback before download
+- **Graphics**: AI-generated worksheets include descriptions for minimalist, colorful graphics
+- **Fonts**: Inter (sans), Outfit (display), Lora (serif)
 - **Path aliases**: `@/` maps to `client/src/`, `@shared/` maps to `shared/`
 
 ### Backend (`server/`)
 - **Framework**: Express 5 on Node.js, wrapped in a standard HTTP server
-- **API Pattern**: REST endpoints defined in `server/routes.ts`, with route manifests in `shared/routes.ts`
-- **AI Integration**: OpenAI SDK configured via `AI_INTEGRATIONS_OPENAI_API_KEY` and `AI_INTEGRATIONS_OPENAI_BASE_URL` environment variables (Replit AI Integrations). The worksheet generation endpoint sends a structured prompt and expects JSON output.
-- **Dev Server**: Vite dev server is used as middleware in development (via `server/vite.ts`); in production, static files are served from `dist/public`
-- **Build**: Custom build script (`script/build.ts`) using Vite for the client and esbuild for the server. Output goes to `dist/`
+- **Authentication**: Passport.js with Local Strategy, express-session with PostgreSQL session store (connect-pg-simple)
+  - Registration: POST `/api/auth/register`
+  - Login: POST `/api/auth/login`
+  - Logout: POST `/api/auth/logout`
+  - User check: GET `/api/auth/user`
+  - Social login buttons (Google, Facebook) are UI-only placeholders
+- **API Pattern**: REST endpoints defined in `server/routes.ts`
+- **AI Integration**: OpenAI SDK configured via Replit AI Integrations (gpt-5.1 model)
+- **Dev Server**: Vite dev server is used as middleware in development; in production, static files are served from `dist/public`
 
 ### Database
 - **Database**: PostgreSQL via `DATABASE_URL` environment variable
-- **ORM**: Drizzle ORM with `drizzle-zod` for automatic Zod schema generation from table definitions
-- **Schema location**: `shared/schema.ts` — the `worksheets` table stores generated worksheet data including class, board, subject, topic, difficulty, length, color mode, and the AI-generated content as JSON
-- **Migrations**: Managed via `drizzle-kit push` (schema push, not migration files)
-- **Additional tables**: `shared/models/chat.ts` defines `conversations` and `messages` tables (part of Replit integrations scaffolding)
+- **ORM**: Drizzle ORM with `drizzle-zod` for automatic Zod schema generation
+- **Schema location**: `shared/schema.ts`
+- **Tables**:
+  - `users` — id, email, password (hashed), name, plan, planExpiresAt, maxChildren, worksheetsGenerated, createdAt
+  - `worksheets` — id, userId, className, board, subject, chapter, topic, difficulty, length, colorMode, content (JSON), rating, createdAt
+  - `session` — created automatically by connect-pg-simple
+- **Migrations**: Managed via `drizzle-kit push`
 
-### Shared Route Manifest (`shared/routes.ts`)
-- Defines API endpoints, HTTP methods, input schemas, and response schemas in a single object (`api`)
-- Both frontend hooks and backend handlers reference this manifest, ensuring type safety across the stack
-- Includes a `buildUrl` helper for constructing parameterized URLs
+### Subscription Plans
+- Free: ₹0, 5 worksheets total, 1 child
+- Starter Monthly: ₹99/month, unlimited, 1 child
+- Starter Annual: ₹999/year, unlimited, 1 child
+- Family Monthly: ₹189/month, unlimited, 2-3 children
+- Family Annual: ₹1,799/year, unlimited, 2-3 children
 
 ### Key Data Flow
-1. User fills out the worksheet form on the Home page
-2. Form submits to `POST /api/worksheets/generate` with class, board, subject, topic, difficulty, length, colorMode
-3. Server constructs an OpenAI prompt, requests structured JSON output matching the worksheet format
-4. AI response is parsed and stored in the `worksheets` table
-5. Client redirects to `/worksheet/:id` to view the rendered worksheet
-6. User can print directly from the browser
-
-### Replit Integrations (Scaffolding)
-- `server/replit_integrations/` and `client/replit_integrations/` contain pre-built modules for audio/voice chat, image generation, batch processing, and text chat. These are scaffolding provided by Replit and are not core to the worksheet functionality but are available for extension.
+1. User registers/logs in on the Auth page
+2. User fills out the worksheet form on the Dashboard
+3. Form submits to `POST /api/worksheets/generate` with all parameters
+4. Server checks free plan limits, then constructs an OpenAI prompt
+5. AI response is parsed and stored in the `worksheets` table
+6. Client redirects to `/worksheet/:id` to view the rendered worksheet
+7. User rates the worksheet (1-5 stars)
+8. User downloads PDF or prints directly
 
 ## External Dependencies
 
 ### Required Services
-- **PostgreSQL**: Database for storing worksheets. Connection string via `DATABASE_URL` environment variable. Must be provisioned.
-- **OpenAI API (via Replit AI Integrations)**: Used for worksheet content generation. Configured via:
-  - `AI_INTEGRATIONS_OPENAI_API_KEY`
-  - `AI_INTEGRATIONS_OPENAI_BASE_URL`
+- **PostgreSQL**: Database for storing users, worksheets, sessions
+- **OpenAI API (via Replit AI Integrations)**: Used for worksheet content generation
 
 ### Key NPM Packages
 - `express` v5 — HTTP server
-- `drizzle-orm` + `drizzle-zod` + `drizzle-kit` — Database ORM and schema management
-- `openai` — OpenAI SDK for AI content generation
+- `passport` + `passport-local` — Authentication
+- `express-session` + `connect-pg-simple` — Session management with PostgreSQL store
+- `drizzle-orm` + `drizzle-zod` + `drizzle-kit` — Database ORM
+- `openai` — AI content generation
 - `react`, `react-dom` — UI framework
 - `@tanstack/react-query` — Async state management
 - `wouter` — Client-side routing
-- `react-hook-form` + `@hookform/resolvers` — Form handling with Zod validation
-- `zod` — Schema validation (shared between client and server)
+- `react-hook-form` + `@hookform/resolvers` — Form handling
+- `zod` — Schema validation
 - `framer-motion` — Animations
 - `tailwindcss` — Utility-first CSS
-- `shadcn/ui` components (Radix UI primitives) — Pre-built accessible UI components
-- `connect-pg-simple` — PostgreSQL session store (available but not currently used for auth)
-- `vite` — Frontend build tool and dev server
-- `esbuild` — Server bundling for production
+- `html2canvas` + `jspdf` — PDF download generation
+- `vite` — Frontend build tool

@@ -5,16 +5,18 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 
-// Pages
+import Landing from "@/pages/Landing";
+import AuthPage from "@/pages/AuthPage";
 import Home from "@/pages/Home";
 import WorksheetView from "@/pages/WorksheetView";
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={Landing} />
+      <Route path="/auth" component={AuthPage} />
+      <Route path="/dashboard" component={Home} />
       <Route path="/worksheet/:id" component={WorksheetView} />
-      {/* Fallback to 404 */}
       <Route component={NotFound} />
     </Switch>
   );

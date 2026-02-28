@@ -17,9 +17,22 @@ export async function registerRoutes(
 
   app.post(api.worksheets.generate.path, async (req, res) => {
     try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Please log in to generate worksheets" });
+      }
+
       const input = api.worksheets.generate.input.parse(req.body);
-      
-    const prompt = `Generate a printable educational worksheet with the following requirements:
+
+      const userId = req.user.id;
+
+      if (userId) {
+        const user = await storage.getUser(userId);
+        if (user && user.plan === "free" && user.worksheetsGenerated >= 5) {
+          return res.status(403).json({ message: "Free plan limit reached. Please upgrade to continue generating worksheets." });
+        }
+      }
+
+      const prompt = `Generate a printable educational worksheet with the following requirements:
 Class/Standard: ${input.className}
 Education Board: ${input.board}
 Subject: ${input.subject}
@@ -46,8 +59,8 @@ The output must be strictly in JSON format matching this structure:
       "questions": [
         {
           "question": "The question text",
-          "options": ["Option A", "Option B", "Option C", "Option D"], // Only include for mcq type
-          "answerSpaceLines": 2 // Number of blank lines to leave for the student to write their answer (0 for mcq)
+          "options": ["Option A", "Option B", "Option C", "Option D"],
+          "answerSpaceLines": 2
         }
       ]
     }
@@ -67,9 +80,13 @@ Ensure the questions are strictly aligned with the specified board syllabus and 
       });
 
       const content = JSON.parse(response.choices[0]?.message?.content || "{}");
-      
-      const worksheet = await storage.createWorksheet(input, content);
-      
+
+      const worksheet = await storage.createWorksheet(input, content, userId);
+
+      if (userId) {
+        await storage.incrementWorksheetCount(userId);
+      }
+
       res.status(200).json(worksheet);
     } catch (err) {
       console.error("Error generating worksheet:", err);
@@ -89,6 +106,35 @@ Ensure the questions are strictly aligned with the specified board syllabus and 
       return res.status(404).json({ message: 'Worksheet not found' });
     }
     res.json(worksheet);
+  });
+
+  app.post("/api/worksheets/:id/rate", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Please log in to rate worksheets" });
+      }
+
+      const id = Number(req.params.id);
+      const { rating } = req.body;
+      if (!rating || rating < 1 || rating > 5) {
+        return res.status(400).json({ message: "Rating must be between 1 and 5" });
+      }
+      const worksheet = await storage.rateWorksheet(id, rating);
+      if (!worksheet) {
+        return res.status(404).json({ message: "Worksheet not found" });
+      }
+      res.json(worksheet);
+    } catch (err) {
+      res.status(500).json({ message: "Failed to rate worksheet" });
+    }
+  });
+
+  app.get("/api/user/worksheets", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    const worksheets = await storage.getUserWorksheets(req.user.id);
+    res.json(worksheets);
   });
 
   return httpServer;

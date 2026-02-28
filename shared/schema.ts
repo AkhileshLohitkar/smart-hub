@@ -1,9 +1,22 @@
-import { pgTable, text, serial, integer, json, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, json, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  password: text("password").notNull(),
+  name: text("name").notNull(),
+  plan: text("plan").notNull().default("free"),
+  planExpiresAt: timestamp("plan_expires_at"),
+  maxChildren: integer("max_children").notNull().default(1),
+  worksheetsGenerated: integer("worksheets_generated").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const worksheets = pgTable("worksheets", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id"),
   className: text("class_name").notNull(),
   board: text("board").notNull(),
   subject: text("subject").notNull(),
@@ -13,15 +26,40 @@ export const worksheets = pgTable("worksheets", {
   length: integer("length").notNull().default(10),
   colorMode: text("color_mode").notNull().default("bw"),
   content: json("content").notNull(),
+  rating: integer("rating"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertWorksheetSchema = createInsertSchema(worksheets).omit({ 
-  id: true, 
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
   createdAt: true,
-  content: true 
+  worksheetsGenerated: true,
+  plan: true,
+  planExpiresAt: true,
+  maxChildren: true,
 });
 
+export const insertWorksheetSchema = createInsertSchema(worksheets).omit({
+  id: true,
+  createdAt: true,
+  content: true,
+  rating: true,
+  userId: true,
+});
+
+export const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+
+export const registerSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(2),
+  password: z.string().min(6),
+});
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Worksheet = typeof worksheets.$inferSelect;
 export type InsertWorksheet = z.infer<typeof insertWorksheetSchema>;
 
