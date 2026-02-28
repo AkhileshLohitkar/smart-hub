@@ -51,9 +51,9 @@ export default function History() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <nav className="bg-white/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-3">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <img src={logoImage} alt="Qik Worksheet" className="w-10 h-10 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
+            <img src={logoImage} alt="Qik Worksheet" className="w-16 h-16 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
             <span className="text-xl font-display font-bold text-gradient-primary" data-testid="logo-text">Qik Worksheets</span>
           </Link>
           <div className="flex items-center gap-3 flex-wrap">

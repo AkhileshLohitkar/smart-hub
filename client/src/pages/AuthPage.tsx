@@ -84,7 +84,7 @@ export default function AuthPage() {
       >
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-4">
-            <img src={logoImage} alt="Qik Worksheet" className="w-14 h-14 rounded-xl object-contain drop-shadow-lg logo-vibrant" data-testid="logo-image" />
+            <img src={logoImage} alt="Qik Worksheet" className="w-28 h-28 rounded-xl object-contain drop-shadow-lg logo-vibrant" data-testid="logo-image" />
             <span className="text-2xl font-display font-bold text-gradient-primary">Qik Worksheets</span>
           </Link>
         </div>

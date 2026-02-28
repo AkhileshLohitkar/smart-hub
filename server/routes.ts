@@ -42,7 +42,7 @@ export async function registerRoutes(
         short_answer: "short_answer (Short Answer Questions)",
         long_answer: "long_answer (Long Answer Questions)",
         match: "match (Match the Following with matchPairs)",
-        identify_picture: "identify_picture (Identify from Picture - describe a picture scenario and ask to identify, use short_answer type)",
+        identify_sketch: "identify_sketch (Identify from Sketch - describe a simple sketch or diagram in words within the question text, then ask the student to identify what it represents. Use section type 'short_answer' with answerSpaceLines: 2. The question should say something like 'Look at the sketch described below:' followed by a textual description of a simple line drawing or diagram, then ask 'What does this sketch represent?' or 'Identify the parts labeled A, B, C.')",
       };
 
       const requestedTypes = questionTypes.length > 0
@@ -104,7 +104,7 @@ IMPORTANT RULES:
 6. For "mcq" type: set answerSpaceLines to 0.
 7. For "true_false" type: use "mcq" as the section type with options ["True", "False"] only.
 8. For "one_word" type: use "short_answer" as the section type with title indicating "One Word Answer" and answerSpaceLines: 1.
-9. For "identify_picture" type: use "short_answer" as the section type, describe a vivid picture/scene in the question and ask students to identify elements from it.
+9. For "identify_sketch" type: use "short_answer" as the section type with title "Identify from Sketch". Each question must describe a simple sketch or diagram in words (e.g., "A sketch shows a plant with arrows pointing to different parts labeled A, B, C, D"), then ask the student to identify or label the parts. Set answerSpaceLines to 2.
 10. Generate a COMPLETE answerKey for ALL questions in ALL sections. The answer field should contain the correct answer text.
 11. Make the worksheet compact and well-organized to fit maximum content on A4 paper.
 12. Ensure questions are strictly aligned with the specified board syllabus and appropriate for the class level.
