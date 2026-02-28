@@ -34,6 +34,7 @@ export const worksheets = pgTable("worksheets", {
   difficulty: text("difficulty").notNull().default("medium"),
   length: integer("length").notNull().default(10),
   colorMode: text("color_mode").notNull().default("bw"),
+  worksheetType: text("worksheet_type").notNull().default("worksheet"),
   content: json("content").notNull(),
   rating: integer("rating"),
   createdAt: timestamp("created_at").defaultNow(),

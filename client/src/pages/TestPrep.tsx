@@ -3,6 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, Sparkles, BookOpen, LayoutList, Settings2, Plus, X, ClipboardList, LogOut, User, FileText, Users, Home as HomeIcon } from "lucide-react";
+import logoImage from "@assets/IMG_6540_1772307045625.PNG";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -27,8 +28,6 @@ import { useUser, useLogout } from "@/hooks/use-auth";
 import { useChildren } from "@/hooks/use-children";
 import { useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
-import { WorksheetRender } from "@/components/WorksheetRender";
-import type { Worksheet } from "@shared/schema";
 
 const testPrepSchema = z.object({
   className: z.string().min(1, "Grade is required"),
@@ -50,7 +49,6 @@ export default function TestPrep() {
   const [selectedChildId, setSelectedChildId] = useState<string>("");
   const [topicInput, setTopicInput] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedTest, setGeneratedTest] = useState<Worksheet | null>(null);
 
   const form = useForm<TestPrepValues>({
     resolver: zodResolver(testPrepSchema),
@@ -107,15 +105,22 @@ export default function TestPrep() {
     try {
       const res = await apiRequest("POST", "/api/test-prep/generate", data);
       const result = await res.json();
-      setGeneratedTest(result);
       toast({
         title: "Test Paper Generated",
         description: "Your test paper has been created successfully.",
       });
+      setLocation(`/worksheet/${result.id}`);
     } catch (error: any) {
+      let errorMsg = "An unexpected error occurred.";
+      try {
+        const parsed = JSON.parse(error.message.split(": ").slice(1).join(": "));
+        errorMsg = parsed.message || errorMsg;
+      } catch {
+        errorMsg = error.message || errorMsg;
+      }
       toast({
         title: "Generation Failed",
-        description: error.message || "An unexpected error occurred.",
+        description: errorMsg,
         variant: "destructive",
       });
     } finally {
@@ -143,9 +148,7 @@ export default function TestPrep() {
       <nav className="bg-white/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50 no-print">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-white" />
-            </div>
+            <img src={logoImage} alt="Qik Worksheet" className="w-9 h-9 rounded-lg object-contain" data-testid="logo-image" />
             <span className="text-xl font-display font-bold text-gradient-primary" data-testid="logo-text">Qik Worksheets</span>
           </Link>
           <div className="flex items-center gap-3 flex-wrap">
@@ -182,33 +185,6 @@ export default function TestPrep() {
       </nav>
 
       <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
-        {generatedTest ? (
-          <div>
-            <div className="flex items-center gap-4 mb-8 no-print">
-              <Button
-                variant="outline"
-                onClick={() => setGeneratedTest(null)}
-                data-testid="button-back-to-form"
-              >
-                Create Another Test
-              </Button>
-              <Button
-                onClick={() => window.print()}
-                data-testid="button-print-test"
-              >
-                Print Test Paper
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setLocation(`/worksheet/${generatedTest.id}`)}
-                data-testid="button-view-worksheet"
-              >
-                View Full Page
-              </Button>
-            </div>
-            <WorksheetRender worksheet={generatedTest} showWatermark={true} />
-          </div>
-        ) : (
           <div className="max-w-2xl mx-auto">
             <div className="bg-card rounded-2xl shadow-xl shadow-primary/5 border border-border/50 overflow-hidden">
               <div className="p-6 md:p-8 bg-gradient-to-b from-primary/5 to-transparent border-b border-border/50">
@@ -478,7 +454,6 @@ export default function TestPrep() {
               </Form>
             </div>
           </div>
-        )}
       </main>
     </div>
   );

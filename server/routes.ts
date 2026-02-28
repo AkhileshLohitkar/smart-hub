@@ -247,6 +247,7 @@ IMPORTANT RULES:
         difficulty: input.difficulty,
         length: totalMarks,
         colorMode: "bw" as const,
+        worksheetType: "test_prep" as const,
       };
 
       const worksheet = await storage.createWorksheet(worksheetInput, content, userId);

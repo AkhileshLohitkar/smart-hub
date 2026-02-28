@@ -4,7 +4,8 @@ import { useWorksheet } from "@/hooks/use-worksheets";
 import { useUser } from "@/hooks/use-auth";
 import { WorksheetRender } from "@/components/WorksheetRender";
 import { StarRating } from "@/components/StarRating";
-import { ArrowLeft, Printer, Download, Loader2, BookOpen } from "lucide-react";
+import { ArrowLeft, Printer, Download, Loader2 } from "lucide-react";
+import logoImage from "@assets/IMG_6540_1772307045625.PNG";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { motion } from "framer-motion";
@@ -144,9 +145,7 @@ export default function WorksheetView() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-md bg-gradient-primary flex items-center justify-center">
-                <BookOpen className="w-4 h-4 text-white" />
-              </div>
+              <img src={logoImage} alt="Qik Worksheet" className="w-8 h-8 rounded-md object-contain" data-testid="logo-image" />
               <div>
                 <h1 className="font-display font-bold text-sm hidden sm:block">
                   {worksheet.subject} Worksheet

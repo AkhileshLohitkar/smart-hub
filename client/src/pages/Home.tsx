@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import { WorksheetForm } from "@/components/WorksheetForm";
-import { Sparkles, Brain, Printer, CheckCircle, BookOpen, LogOut, User, Loader2, FileText, Users, ClipboardList } from "lucide-react";
+import { Sparkles, Brain, Printer, CheckCircle, LogOut, User, Loader2, FileText, Users, ClipboardList } from "lucide-react";
 import { motion } from "framer-motion";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
+import logoImage from "@assets/IMG_6540_1772307045625.PNG";
 
 export default function Home() {
   const { data: user, isLoading } = useUser();
@@ -53,9 +54,7 @@ export default function Home() {
       <nav className="bg-white/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50 no-print">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-white" />
-            </div>
+            <img src={logoImage} alt="Qik Worksheet" className="w-9 h-9 rounded-lg object-contain" data-testid="logo-image" />
             <span className="text-xl font-display font-bold text-gradient-primary" data-testid="logo-text">Qik Worksheets</span>
           </Link>
           <div className="flex items-center gap-3 flex-wrap">
