@@ -307,7 +307,7 @@ export default function WorksheetView() {
         <DialogContent data-testid="dialog-review" className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-[#1a3a5c]" />
+              <MessageSquare className="w-5 h-5 text-[#0066FF]" />
               We'd love your feedback
             </DialogTitle>
             <DialogDescription>
@@ -316,7 +316,7 @@ export default function WorksheetView() {
           </DialogHeader>
           {reviewSubmitted ? (
             <div className="py-6 text-center">
-              <p className="text-lg font-semibold text-[#1a3a5c] mb-1">Thank you!</p>
+              <p className="text-lg font-semibold text-[#0066FF] mb-1">Thank you!</p>
               <p className="text-sm text-muted-foreground">Your feedback helps us improve Qik Worksheets.</p>
             </div>
           ) : (
@@ -348,7 +348,7 @@ export default function WorksheetView() {
                     toast({ title: "Feedback received!", description: "Thanks for helping us improve." });
                     setTimeout(() => setReviewDialogOpen(false), 2000);
                   }}
-                  className="bg-[#1a3a5c] text-white hover:bg-[#1a3a5c]/90"
+                  className="bg-[#0066FF] text-white hover:bg-[#0066FF]/90"
                   data-testid="button-submit-review"
                 >
                   {reviewText.trim() ? "Submit Feedback" : "I'm Satisfied!"}
