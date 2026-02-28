@@ -8,6 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
 import logoImage from "@assets/IMG_6540_1772307045625.PNG";
 
+const PLAN_LABELS: Record<string, string> = {
+  free: "Free",
+  starter: "Starter",
+  starter_annual: "Starter",
+  family: "Family",
+  family_annual: "Family",
+  no_watermark: "Premium",
+};
+
 export default function Home() {
   const { data: user, isLoading } = useUser();
   const { data: childrenData, isLoading: childrenLoading } = useChildren();
@@ -93,8 +102,8 @@ export default function Home() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <User className="w-4 h-4" />
                   <span data-testid="text-username">{user.name}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-primary text-white font-medium capitalize" data-testid="text-plan">
-                    {user.plan}
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-primary text-white font-medium" data-testid="text-plan">
+                    {PLAN_LABELS[user.plan] || user.plan}
                   </span>
                 </div>
                 <Button
