@@ -4,10 +4,11 @@ import { useWorksheet } from "@/hooks/use-worksheets";
 import { useUser } from "@/hooks/use-auth";
 import { WorksheetRender } from "@/components/WorksheetRender";
 import { StarRating } from "@/components/StarRating";
-import { ArrowLeft, Printer, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, Printer, Download, Loader2, MessageSquare } from "lucide-react";
 import logoImage from "@assets/IMG_6540_1772307045625.PNG";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -23,15 +24,28 @@ export default function WorksheetView() {
   const [userRating, setUserRating] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
   const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const showWatermark = !user || !NO_WATERMARK_PLANS.includes(user.plan);
   const worksheetRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    if (worksheet && !worksheet.rating) {
+    if (worksheet && worksheet.rating === null) {
       setRatingDialogOpen(true);
     }
   }, [worksheet]);
+
+  useEffect(() => {
+    if (user && user.worksheetsGenerated > 0 && user.worksheetsGenerated % 25 === 0) {
+      const dismissedKey = `review_dismissed_${user.worksheetsGenerated}`;
+      if (!sessionStorage.getItem(dismissedKey)) {
+        const timer = setTimeout(() => setReviewDialogOpen(true), 2000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [user]);
 
   const rateMutation = useMutation({
     mutationFn: async (rating: number) => {
@@ -55,15 +69,23 @@ export default function WorksheetView() {
     window.print();
   };
 
-  const addWatermarkToPage = (pdf: any, watermarkImg: string, pdfWidth: number, pdfHeight: number) => {
+  const addWatermarkToPage = (pdf: any, watermarkImg: string, pdfWidth: number, pdfHeight: number, imgAspect: number) => {
     if (!showWatermark) return;
-    const wmSize = 120;
-    const wmX = (pdfWidth - wmSize) / 2;
-    const wmY = (pdfHeight - wmSize) / 2;
+    const wmMaxSize = 120;
+    let wmW: number, wmH: number;
+    if (imgAspect >= 1) {
+      wmW = wmMaxSize;
+      wmH = wmMaxSize / imgAspect;
+    } else {
+      wmH = wmMaxSize;
+      wmW = wmMaxSize * imgAspect;
+    }
+    const wmX = (pdfWidth - wmW) / 2;
+    const wmY = (pdfHeight - wmH) / 2;
     pdf.saveGraphicsState();
     const gState = new (pdf as any).GState({ opacity: 0.06 });
     pdf.setGState(gState);
-    pdf.addImage(watermarkImg, "PNG", wmX, wmY, wmSize, wmSize);
+    pdf.addImage(watermarkImg, "PNG", wmX, wmY, wmW, wmH);
     pdf.restoreGraphicsState();
   };
 
@@ -101,6 +123,7 @@ export default function WorksheetView() {
       const totalScaledHeight = canvas.height * scaleFactor;
 
       let watermarkDataUrl = "";
+      let watermarkAspect = 1;
       if (showWatermark) {
         const wmImg = new Image();
         wmImg.crossOrigin = "anonymous";
@@ -112,6 +135,7 @@ export default function WorksheetView() {
         const wmCanvas = document.createElement("canvas");
         wmCanvas.width = wmImg.naturalWidth || 200;
         wmCanvas.height = wmImg.naturalHeight || 200;
+        watermarkAspect = wmCanvas.width / wmCanvas.height;
         const wmCtx = wmCanvas.getContext("2d");
         if (wmCtx) {
           wmCtx.drawImage(wmImg, 0, 0);
@@ -145,7 +169,7 @@ export default function WorksheetView() {
         pdf.addImage(pageImgData, "PNG", margin, margin, usableWidth, renderedHeight);
 
         if (watermarkDataUrl) {
-          addWatermarkToPage(pdf, watermarkDataUrl, pdfWidth, pdfHeight);
+          addWatermarkToPage(pdf, watermarkDataUrl, pdfWidth, pdfHeight, watermarkAspect);
         }
       }
 
@@ -271,6 +295,67 @@ export default function WorksheetView() {
               Submit Rating
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={reviewDialogOpen} onOpenChange={(open) => {
+        if (!open && user) {
+          sessionStorage.setItem(`review_dismissed_${user.worksheetsGenerated}`, "true");
+        }
+        setReviewDialogOpen(open);
+      }}>
+        <DialogContent data-testid="dialog-review" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-[#1a3a5c]" />
+              We'd love your feedback
+            </DialogTitle>
+            <DialogDescription>
+              You've generated {user?.worksheetsGenerated} worksheets! How's your experience so far?
+            </DialogDescription>
+          </DialogHeader>
+          {reviewSubmitted ? (
+            <div className="py-6 text-center">
+              <p className="text-lg font-semibold text-[#1a3a5c] mb-1">Thank you!</p>
+              <p className="text-sm text-muted-foreground">Your feedback helps us improve Qik Worksheets.</p>
+            </div>
+          ) : (
+            <>
+              <div className="py-3">
+                <Textarea
+                  placeholder="Any suggestions, issues, or things you love about the app? (optional)"
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
+                  className="min-h-[100px] resize-none"
+                  data-testid="input-review-text"
+                />
+              </div>
+              <DialogFooter className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    if (user) sessionStorage.setItem(`review_dismissed_${user.worksheetsGenerated}`, "true");
+                    setReviewDialogOpen(false);
+                  }}
+                  data-testid="button-skip-review"
+                >
+                  Maybe Later
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (user) sessionStorage.setItem(`review_dismissed_${user.worksheetsGenerated}`, "true");
+                    setReviewSubmitted(true);
+                    toast({ title: "Feedback received!", description: "Thanks for helping us improve." });
+                    setTimeout(() => setReviewDialogOpen(false), 2000);
+                  }}
+                  className="bg-[#1a3a5c] text-white hover:bg-[#1a3a5c]/90"
+                  data-testid="button-submit-review"
+                >
+                  {reviewText.trim() ? "Submit Feedback" : "I'm Satisfied!"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 

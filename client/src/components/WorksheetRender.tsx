@@ -3,6 +3,17 @@ import { Worksheet } from "@shared/schema";
 import { CheckSquare, Type, ListOrdered, Edit3, Link as LinkIcon, Sparkles } from "lucide-react";
 import logoImage from "@assets/IMG_6540_1772304387045.PNG";
 
+const NAVY = {
+  text: "text-[#1a3a5c]",
+  textLight: "text-[#1a3a5c]/60",
+  bg: "bg-[#1a3a5c]/5",
+  bgMedium: "bg-[#1a3a5c]/10",
+  border: "border-[#1a3a5c]/30",
+  borderMedium: "border-[#1a3a5c]/50",
+  borderHover: "border-[#1a3a5c]",
+  dashedBorder: "border-[#1a3a5c]/50",
+};
+
 interface WorksheetRenderProps {
   worksheet: Worksheet;
   showWatermark?: boolean;
@@ -114,7 +125,7 @@ function MatchSection({ q, qIndex, isColor }: { q: ContentQuestion; qIndex: numb
         <div className="w-full">
           <p className="text-sm leading-snug mb-1.5" data-testid={`text-match-question-${qIndex}`}>{q.question}</p>
           <div className="flex flex-wrap gap-3">
-            <div className={`flex-1 min-w-[120px] border rounded-md p-2 ${isColor ? 'border-primary/30 bg-primary/5' : 'border-gray-400'}`} data-testid={`column-a-${qIndex}`}>
+            <div className={`flex-1 min-w-[120px] border rounded-md p-2 ${isColor ? `${NAVY.border} ${NAVY.bg}` : 'border-gray-400'}`} data-testid={`column-a-${qIndex}`}>
               <h4 className="text-[10px] font-bold uppercase tracking-wide mb-1 text-gray-600">Column A</h4>
               <div className="space-y-1">
                 {leftItems.map((item, i) => (
@@ -125,7 +136,7 @@ function MatchSection({ q, qIndex, isColor }: { q: ContentQuestion; qIndex: numb
                 ))}
               </div>
             </div>
-            <div className={`flex-1 min-w-[120px] border rounded-md p-2 ${isColor ? 'border-primary/30 bg-primary/5' : 'border-gray-400'}`} data-testid={`column-b-${qIndex}`}>
+            <div className={`flex-1 min-w-[120px] border rounded-md p-2 ${isColor ? `${NAVY.border} ${NAVY.bg}` : 'border-gray-400'}`} data-testid={`column-b-${qIndex}`}>
               <h4 className="text-[10px] font-bold uppercase tracking-wide mb-1 text-gray-600">Column B</h4>
               <div className="space-y-1">
                 {shuffledRight.map((item, i) => (
@@ -154,10 +165,10 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
     if (!isColor) return null;
     return (
       <div className="flex flex-col items-center justify-center p-2 opacity-70 print:opacity-100">
-        <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center border-2 border-primary/20">
-          <Sparkles className="w-8 h-8 text-primary" />
+        <div className={`w-16 h-16 ${NAVY.bgMedium} rounded-full flex items-center justify-center border-2 ${NAVY.border}`}>
+          <Sparkles className={`w-8 h-8 ${NAVY.text}`} />
         </div>
-        <p className="text-[10px] mt-1 text-primary/60 font-sans max-w-[80px] text-center">{graphic.altText}</p>
+        <p className={`text-[10px] mt-1 ${NAVY.textLight} font-sans max-w-[80px] text-center`}>{graphic.altText}</p>
       </div>
     );
   };
@@ -197,14 +208,14 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
           </div>
         )}
 
-        <div className={`flex justify-between items-end border-b-2 pb-3 mb-5 relative ${isColor ? 'border-primary/50' : 'border-black'}`}>
+        <div className={`flex justify-between items-end border-b-2 pb-3 mb-5 relative ${isColor ? NAVY.borderMedium : 'border-black'}`}>
           {isColor && content.graphics?.find(g => g.position === "top-right") && (
             <div className="absolute -top-4 -right-4">
               <GraphicPlaceholder graphic={content.graphics.find(g => g.position === "top-right")} />
             </div>
           )}
           <div>
-            <h1 className={`text-2xl md:text-3xl font-bold font-display mb-1 ${isColor ? 'text-primary' : 'text-black'}`}>
+            <h1 className={`text-2xl md:text-3xl font-bold font-display mb-1 ${isColor ? NAVY.text : 'text-black'}`}>
               {content.title || `${worksheet.subject}: ${worksheet.topic}`}
             </h1>
             <p className="text-gray-600 font-sans text-xs uppercase tracking-wider">
@@ -245,7 +256,7 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
         </div>
 
         {content.instructions && (
-          <div className={`p-3 mb-5 rounded-lg ${isColor ? 'bg-blue-50 text-blue-900' : 'bg-gray-100 text-black border border-gray-300'}`}>
+          <div className={`p-3 mb-5 rounded-lg ${isColor ? `${NAVY.bg} text-[#1a3a5c]` : 'bg-gray-100 text-black border border-gray-300'}`}>
             <h3 className="font-sans font-bold text-xs uppercase tracking-wide mb-0.5">Instructions</h3>
             <p className="italic text-xs leading-snug">{content.instructions}</p>
           </div>
@@ -258,11 +269,11 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center">
                   {isColor && (
-                    <div className="text-primary opacity-80">
+                    <div className={`${NAVY.text} opacity-80`}>
                       {getSectionIcon(section.type)}
                     </div>
                   )}
-                  <h2 className={`text-base font-bold font-display ${isColor ? 'text-primary' : 'text-black border-b border-black pb-0.5 inline-block'}`}>
+                  <h2 className={`text-base font-bold font-display ${isColor ? NAVY.text : 'text-black border-b border-black pb-0.5 inline-block'}`}>
                     Part {String.fromCharCode(65 + sIndex)}: {section.title}
                   </h2>
                 </div>
@@ -296,7 +307,7 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-2 font-sans ml-2">
                               {q.options.map((opt, optIndex) => (
                                 <label key={optIndex} className="flex items-center gap-2 cursor-pointer group">
-                                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isColor ? 'border-primary/40 group-hover:border-primary' : 'border-gray-400 group-hover:border-black'}`}>
+                                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isColor ? `${NAVY.border} group-hover:${NAVY.borderHover}` : 'border-gray-400 group-hover:border-black'}`}>
                                     <span className="text-[9px] font-bold opacity-0 group-hover:opacity-100">
                                       {String.fromCharCode(97 + optIndex)}
                                     </span>
@@ -310,7 +321,7 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
                           {q.answerSpaceLines > 0 && (
                             <div className="space-y-0.5 mt-1 opacity-40">
                               {Array.from({ length: section.type === "short_answer" ? Math.min(q.answerSpaceLines, 2) : q.answerSpaceLines }).map((_, i) => (
-                                <div key={i} className={`border-b border-dashed h-4 w-full ${isColor ? 'border-primary/50' : 'border-black'}`} />
+                                <div key={i} className={`border-b border-dashed h-4 w-full ${isColor ? NAVY.dashedBorder : 'border-black'}`} />
                               ))}
                             </div>
                           )}
