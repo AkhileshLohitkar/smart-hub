@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Brain, Printer, CheckCircle, Star, BookOpen, Users, Download, Sparkles, ArrowRight, Shield, Zap, Quote, Loader2 } from "lucide-react";
-import logoImage from "@assets/IMG_6540_1772322623564.PNG";
+import logoImage from "@assets/IMG_6540_1772323083109.jpg";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -222,7 +222,7 @@ export default function Landing() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-lg border-b border-border/50">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <img src={logoImage} alt="Qik Worksheet" className="w-16 h-16 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
+            <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
             <span className="text-xl font-display font-bold text-gradient-primary" data-testid="logo-text">Qik Worksheets</span>
           </Link>
           <div className="flex items-center gap-3">
@@ -249,7 +249,7 @@ export default function Landing() {
             transition={{ duration: 0.6 }}
           >
             <div className="mb-6">
-              <img src={logoImage} alt="Qik Worksheet" className="w-56 h-56 mx-auto mb-4 drop-shadow-xl object-contain logo-vibrant" data-testid="hero-logo" />
+              <img src={logoImage} alt="Qik Worksheet" className="w-[28rem] h-[28rem] mx-auto mb-4 drop-shadow-xl object-contain logo-vibrant" data-testid="hero-logo" />
             </div>
             <Badge className="bg-gradient-primary text-white border-0 px-4 py-1.5 text-sm font-semibold mb-6">
               <Sparkles className="w-4 h-4 mr-1.5" />
@@ -536,7 +536,7 @@ export default function Landing() {
       <footer className="py-8 px-4 border-t border-border/50">
         <div className="container mx-auto max-w-6xl flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <img src={logoImage} alt="Qik Worksheet" className="w-16 h-16 rounded-md object-contain drop-shadow-md logo-vibrant" />
+            <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 rounded-md object-contain drop-shadow-md logo-vibrant" />
             <span className="font-display font-bold text-gradient-primary">Qik Worksheets</span>
           </div>
           <p className="text-sm text-muted-foreground">

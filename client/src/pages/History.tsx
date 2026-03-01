@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, User, Loader2, Plus, Star, FileText, Calendar, ClipboardList } from "lucide-react";
 import type { Worksheet } from "@shared/schema";
-import logoImage from "@assets/IMG_6540_1772322623564.PNG";
+import logoImage from "@assets/IMG_6540_1772323083109.jpg";
 
 export default function History() {
   const { data: user, isLoading: userLoading } = useUser();
@@ -53,7 +53,7 @@ export default function History() {
       <nav className="bg-white/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-3">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <img src={logoImage} alt="Qik Worksheet" className="w-16 h-16 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
+            <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
             <span className="text-xl font-display font-bold text-gradient-primary" data-testid="logo-text">Qik Worksheets</span>
           </Link>
           <div className="flex items-center gap-3 flex-wrap">

@@ -3,7 +3,7 @@ import { useUser, useLogout } from "@/hooks/use-auth";
 import { useChildren, useCreateChild, useDeleteChild } from "@/hooks/use-children";
 import { Link, useLocation } from "wouter";
 import { LogOut, User, Loader2, Plus, Trash2, Users } from "lucide-react";
-import logoImage from "@assets/IMG_6540_1772322623564.PNG";
+import logoImage from "@assets/IMG_6540_1772323083109.jpg";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -98,7 +98,7 @@ export default function Children() {
       <nav className="bg-white/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-3">
           <Link href="/dashboard" className="flex items-center gap-2">
-            <img src={logoImage} alt="Qik Worksheet" className="w-16 h-16 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
+            <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
             <span className="text-xl font-display font-bold text-gradient-primary" data-testid="logo-text">Qik Worksheets</span>
           </Link>
           <div className="flex items-center gap-3 flex-wrap">

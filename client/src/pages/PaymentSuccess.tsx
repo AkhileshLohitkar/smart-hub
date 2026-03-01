@@ -4,7 +4,7 @@ import { CheckCircle, ArrowRight, Sparkles, Crown, Star, Loader2 } from "lucide-
 import { Button } from "@/components/ui/button";
 import { queryClient } from "@/lib/queryClient";
 import { useUser } from "@/hooks/use-auth";
-import logoImage from "@assets/IMG_6540_1772322623564.PNG";
+import logoImage from "@assets/IMG_6540_1772323083109.jpg";
 import { motion } from "framer-motion";
 
 const planDetails: Record<string, { label: string; perks: string[] }> = {
@@ -88,7 +88,7 @@ export default function PaymentSuccess() {
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="bg-white p-8 sm:p-10 rounded-3xl shadow-2xl max-w-lg w-full text-center border border-border relative z-10"
       >
-        <img src={logoImage} alt="Qik Worksheet" className="w-16 h-16 mx-auto mb-4 rounded-lg object-contain logo-vibrant" />
+        <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 mx-auto mb-4 rounded-lg object-contain logo-vibrant" />
 
         <motion.div
           initial={{ scale: 0 }}

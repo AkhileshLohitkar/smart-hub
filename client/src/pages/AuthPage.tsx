@@ -5,7 +5,7 @@ import { z } from "zod";
 import { Link, useLocation, useSearch } from "wouter";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import logoImage from "@assets/IMG_6540_1772322623564.PNG";
+import logoImage from "@assets/IMG_6540_1772323083109.jpg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -84,7 +84,7 @@ export default function AuthPage() {
       >
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2 mb-4">
-            <img src={logoImage} alt="Qik Worksheet" className="w-28 h-28 rounded-xl object-contain drop-shadow-lg logo-vibrant" data-testid="logo-image" />
+            <img src={logoImage} alt="Qik Worksheet" className="w-56 h-56 rounded-xl object-contain drop-shadow-lg logo-vibrant" data-testid="logo-image" />
             <span className="text-2xl font-display font-bold text-gradient-primary">Qik Worksheets</span>
           </Link>
         </div>

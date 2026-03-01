@@ -5,7 +5,7 @@ import { useUser } from "@/hooks/use-auth";
 import { WorksheetRender } from "@/components/WorksheetRender";
 import { StarRating } from "@/components/StarRating";
 import { ArrowLeft, Printer, Download, Loader2, MessageSquare } from "lucide-react";
-import logoImage from "@assets/IMG_6540_1772322623564.PNG";
+import logoImage from "@assets/IMG_6540_1772323083109.jpg";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -225,7 +225,7 @@ export default function WorksheetView() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex items-center gap-2">
-              <img src={logoImage} alt="Qik Worksheet" className="w-16 h-16 rounded-md object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
+              <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 rounded-md object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
               <div>
                 <h1 className="font-display font-bold text-sm hidden sm:block">
                   {worksheet.subject} Worksheet

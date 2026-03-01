@@ -1,13 +1,13 @@
 import { Link } from "wouter";
 import { XCircle, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import logoImage from "@assets/IMG_6540_1772322623564.PNG";
+import logoImage from "@assets/IMG_6540_1772323083109.jpg";
 
 export default function PaymentCancel() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <div className="bg-card p-8 rounded-2xl shadow-xl max-w-md w-full text-center border border-border">
-        <img src={logoImage} alt="Qik Worksheet" className="w-16 h-16 mx-auto mb-4 rounded-lg object-contain logo-vibrant" />
+        <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 mx-auto mb-4 rounded-lg object-contain logo-vibrant" />
         <div className="w-16 h-16 mx-auto rounded-full bg-amber-100 flex items-center justify-center mb-4">
           <XCircle className="w-10 h-10 text-amber-600" />
         </div>
