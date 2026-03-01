@@ -31,6 +31,8 @@ declare global {
 export function setupAuth(app: Express) {
   const PgStore = connectPg(session);
 
+  app.set("trust proxy", 1);
+
   app.use(
     session({
       store: new PgStore({
@@ -40,6 +42,7 @@ export function setupAuth(app: Express) {
       secret: process.env.SESSION_SECRET!,
       resave: false,
       saveUninitialized: false,
+      proxy: true,
       cookie: {
         maxAge: 30 * 24 * 60 * 60 * 1000,
         httpOnly: true,
