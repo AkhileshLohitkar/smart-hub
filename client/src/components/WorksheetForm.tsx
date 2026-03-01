@@ -29,7 +29,7 @@ import { useLocation } from "wouter";
 import { insertWorksheetSchema } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { findNcertBooks } from "@/lib/ncertBooks";
-import { getEnglishBooks, type BookInfo } from "@/lib/englishChapters";
+import { getSubjectBooks, type BookInfo } from "@/lib/ncertChapters";
 
 const QUESTION_TYPES = [
   { id: "mcq", label: "Multiple Choice (MCQ)" },
@@ -99,9 +99,13 @@ export function WorksheetForm() {
 
   const ncertBooks = (board === "CBSE" && className && subject) ? findNcertBooks(className, subject) : [];
 
-  const isEnglish = subject?.toLowerCase().includes("english") || subject?.toLowerCase().includes("eng");
-  const englishBooks: BookInfo[] = (isEnglish && className) ? getEnglishBooks(className) : [];
-  const selectedBookData = englishBooks.find(b => b.bookName === selectedBook);
+  const chapterBooks: BookInfo[] = (board === "CBSE" && className && subject) ? getSubjectBooks(className, subject) : [];
+  const selectedBookData = chapterBooks.find(b => b.bookName === selectedBook);
+
+  useEffect(() => {
+    setSelectedBook("");
+    form.setValue("topic", "");
+  }, [subject, className, form]);
 
   const toggleQuestionType = (typeId: string) => {
     setSelectedQuestionTypes(prev =>
@@ -355,53 +359,82 @@ export function WorksheetForm() {
                       <FormDescription className="mt-2">Be as specific as possible for better results.</FormDescription>
                     </TabsContent>
                     <TabsContent value="chapters">
-                      {englishBooks.length > 0 ? (
+                      {chapterBooks.length > 0 ? (
                         <div className="space-y-3">
-                          <Select
-                            value={selectedBook}
-                            onValueChange={(val) => {
-                              setSelectedBook(val);
-                              field.onChange("");
-                            }}
-                          >
-                            <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-book">
-                              <SelectValue placeholder="Select a textbook" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {englishBooks.map((book) => (
-                                <SelectItem key={book.bookName} value={book.bookName} data-testid={`option-book-${book.bookName}`}>
-                                  {book.bookName} ({book.publisher})
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {selectedBookData && (
-                            <Select
-                              value={field.value || ""}
-                              onValueChange={(val) => field.onChange(val)}
-                            >
-                              <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-chapter">
-                                <SelectValue placeholder="Select a chapter" />
-                              </SelectTrigger>
-                              <SelectContent className="max-h-[300px]">
-                                {selectedBookData.chapters.map((ch, idx) => (
-                                  <SelectItem key={idx} value={ch} data-testid={`option-chapter-${idx}`}>
-                                    {idx + 1}. {ch}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                          {chapterBooks.length === 1 ? (
+                            <>
+                              <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
+                                <BookMarked className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                                <p className="text-xs font-medium text-blue-700 dark:text-blue-300">{chapterBooks[0].bookName} ({chapterBooks[0].publisher})</p>
+                              </div>
+                              <Select
+                                value={field.value || ""}
+                                onValueChange={(val) => field.onChange(val)}
+                              >
+                                <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-chapter">
+                                  <SelectValue placeholder="Select a chapter" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[300px]">
+                                  {chapterBooks[0].chapters.map((ch, idx) => (
+                                    <SelectItem key={idx} value={ch} data-testid={`option-chapter-${idx}`}>
+                                      {idx + 1}. {ch}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </>
+                          ) : (
+                            <>
+                              <Select
+                                value={selectedBook}
+                                onValueChange={(val) => {
+                                  setSelectedBook(val);
+                                  field.onChange("");
+                                }}
+                              >
+                                <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-book">
+                                  <SelectValue placeholder="Select a textbook" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {chapterBooks.map((book) => (
+                                    <SelectItem key={book.bookName} value={book.bookName} data-testid={`option-book-${book.bookName}`}>
+                                      {book.bookName} ({book.publisher})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              {selectedBookData && (
+                                <Select
+                                  value={field.value || ""}
+                                  onValueChange={(val) => field.onChange(val)}
+                                >
+                                  <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-chapter">
+                                    <SelectValue placeholder="Select a chapter" />
+                                  </SelectTrigger>
+                                  <SelectContent className="max-h-[300px]">
+                                    {selectedBookData.chapters.map((ch, idx) => (
+                                      <SelectItem key={idx} value={ch} data-testid={`option-chapter-${idx}`}>
+                                        {idx + 1}. {ch}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                            </>
                           )}
-                          {selectedBookData && field.value && (
+                          {field.value && (
                             <p className="text-xs text-muted-foreground">
-                              Worksheet will be based on: <span className="font-medium text-foreground">{field.value}</span> from {selectedBook}
+                              Worksheet will be based on: <span className="font-medium text-foreground">{field.value}</span>
+                              {chapterBooks.length > 1 && selectedBook ? ` from ${selectedBook}` : ` from ${chapterBooks[0]?.bookName}`}
                             </p>
                           )}
                         </div>
                       ) : (
                         <div className="p-4 border-2 border-dashed rounded-xl text-center text-sm text-muted-foreground bg-muted/30">
-                          {!className || !subject ? (
-                            <p>Select a grade and enter "English" as the subject to see available chapters</p>
+                          {board !== "CBSE" ? (
+                            <p>Chapter lists are available for CBSE board. Select CBSE as the board to browse chapters.</p>
+                          ) : !className || !subject ? (
+                            <p>Select a grade and subject to see available NCERT chapters</p>
                           ) : (
                             <p>No chapter list available for {subject} ({className}). Use the "Specific Topic" tab to enter your topic manually.</p>
                           )}
