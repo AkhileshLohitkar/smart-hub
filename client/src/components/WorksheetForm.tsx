@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Sparkles, BookOpen, LayoutList, Settings2, UserRound, X, CheckSquare } from "lucide-react";
+import { Loader2, Sparkles, BookOpen, LayoutList, Settings2, UserRound, X, CheckSquare, BookMarked, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { insertWorksheetSchema } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import { findNcertBooks } from "@/lib/ncertBooks";
 
 const QUESTION_TYPES = [
   { id: "mcq", label: "Multiple Choice (MCQ)" },
@@ -68,7 +69,9 @@ export function WorksheetForm() {
     },
   });
 
+  const hasChildren = children && children.length > 0;
   const isChildLocked = selectedChildId !== null;
+  const isFormLocked = hasChildren && !isChildLocked;
 
   useEffect(() => {
     if (selectedChildId && children) {
@@ -90,14 +93,9 @@ export function WorksheetForm() {
     setSelectedChildId(Number(value));
   };
 
-  const [subject, className] = form.watch(["subject", "className"]);
+  const [subject, className, board] = form.watch(["subject", "className", "board"]);
 
-  const getTopicsForSubject = (subject: string, grade: string) => {
-    // This could be expanded into a proper lookup table or API call
-    return [];
-  };
-
-  const topics = getTopicsForSubject(subject, className);
+  const ncertBooks = (board === "CBSE" && className && subject) ? findNcertBooks(className, subject) : [];
 
   const toggleQuestionType = (typeId: string) => {
     setSelectedQuestionTypes(prev =>
@@ -157,7 +155,7 @@ export function WorksheetForm() {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="p-6 md:p-8 space-y-8">
           
-          {children && children.length > 0 && (
+          {hasChildren && (
             <div className="space-y-2">
               <label className="text-sm font-semibold text-foreground/80 flex items-center gap-2">
                 <UserRound className="w-4 h-4 text-primary/70" /> Select Child
@@ -168,10 +166,10 @@ export function WorksheetForm() {
                   onValueChange={handleChildSelect}
                 >
                   <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl flex-1" data-testid="select-child">
-                    <SelectValue placeholder="Choose a child (optional)" />
+                    <SelectValue placeholder="Select a child to continue" />
                   </SelectTrigger>
                   <SelectContent>
-                    {children.map((child) => (
+                    {children!.map((child) => (
                       <SelectItem key={child.id} value={String(child.id)} data-testid={`option-child-${child.id}`}>
                         {child.name} — {child.className}, {child.board}
                       </SelectItem>
@@ -195,10 +193,18 @@ export function WorksheetForm() {
                   Grade and board are set from the selected child's profile.
                 </p>
               )}
+              {isFormLocked && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800" data-testid="text-select-child-prompt">
+                  <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    Please select a child to unlock the worksheet configuration below.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 ${isFormLocked ? 'opacity-40 pointer-events-none select-none' : ''}`}>
             {/* Grade / Class */}
             <FormField
               control={form.control}
@@ -284,6 +290,16 @@ export function WorksheetForm() {
                 </FormItem>
               )}
             />
+
+            {ncertBooks.length > 0 && (
+              <div className="col-span-1 md:col-span-2 flex items-start gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800" data-testid="text-ncert-books">
+                <BookMarked className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-0.5">NCERT Recommended Textbook{ncertBooks.length > 1 ? 's' : ''}</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400">{ncertBooks.join(" | ")}</p>
+                </div>
+              </div>
+            )}
 
             {/* Chapter */}
             <FormField
@@ -467,10 +483,10 @@ export function WorksheetForm() {
             />
           </div>
 
-          <div className="pt-4">
+          <div className={`pt-4 ${isFormLocked ? 'opacity-40 pointer-events-none' : ''}`}>
             <Button 
               type="submit" 
-              disabled={isGenerating}
+              disabled={isGenerating || isFormLocked}
               className="w-full h-14 text-lg rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 hover:-translate-y-0.5"
             >
               {isGenerating ? (

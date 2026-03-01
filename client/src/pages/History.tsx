@@ -5,10 +5,9 @@ import { useUser, useLogout } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, User, Loader2, Plus, Star, FileText, Calendar, ClipboardList } from "lucide-react";
+import { Loader2, Plus, Star, FileText, Calendar, ClipboardList } from "lucide-react";
 import type { Worksheet } from "@shared/schema";
-import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { AppNav } from "@/components/AppNav";
 
 export default function History() {
   const { data: user, isLoading: userLoading } = useUser();
@@ -51,47 +50,7 @@ export default function History() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-3">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
-            <span className="text-xl font-display font-bold text-gradient-primary" data-testid="logo-text">Qik Worksheets</span>
-          </Link>
-          <div className="flex items-center gap-3 flex-wrap">
-            <Link href="/dashboard">
-              <Button variant="ghost" size="sm" data-testid="link-generate-new">
-                <Plus className="w-4 h-4 mr-1" /> Generate New
-              </Button>
-            </Link>
-            <Link href="/test-prep">
-              <Button variant="ghost" size="sm" data-testid="link-test-prep">
-                <ClipboardList className="w-4 h-4 mr-1" /> Test Prep
-              </Button>
-            </Link>
-            {user && (
-              <>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <User className="w-4 h-4" />
-                  <span data-testid="text-username">{user.name}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-primary text-white font-medium capitalize" data-testid="text-plan">
-                    {user.plan}
-                  </span>
-                </div>
-                <ThemeToggle />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => logoutMutation.mutate()}
-                  className="text-muted-foreground"
-                  data-testid="button-logout"
-                >
-                  <LogOut className="w-4 h-4 mr-1" /> Logout
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </nav>
+      <AppNav user={user} onLogout={() => logoutMutation.mutate()} />
 
       <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">

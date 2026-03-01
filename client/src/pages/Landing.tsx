@@ -221,21 +221,33 @@ export default function Landing() {
   return (
     <div className="min-h-screen bg-background">
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-border/50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
-            <span className="text-xl font-display font-bold text-gradient-primary" data-testid="logo-text">Qik Worksheets</span>
+            <img src={logoImage} alt="Qik Worksheet" className="w-20 h-20 sm:w-32 sm:h-32 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
+            <span className="text-lg sm:text-xl font-display font-bold text-gradient-primary" data-testid="logo-text">Qik Worksheets</span>
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle />
-            <Link href="/auth">
-              <Button variant="ghost" className="font-semibold" data-testid="nav-login">Log In</Button>
-            </Link>
-            <Link href="/auth?tab=register">
-              <Button className="bg-gradient-primary text-white font-semibold rounded-xl hover:opacity-90 transition-opacity" data-testid="nav-signup">
-                Sign Up Free
-              </Button>
-            </Link>
+            {user ? (
+              <>
+                <Link href="/dashboard">
+                  <Button className="bg-gradient-primary text-white font-semibold rounded-xl hover:opacity-90 transition-opacity text-sm sm:text-base" data-testid="nav-dashboard">
+                    Go to Dashboard
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/auth">
+                  <Button variant="ghost" className="font-semibold text-sm sm:text-base" data-testid="nav-login">Log In</Button>
+                </Link>
+                <Link href="/auth?tab=register">
+                  <Button className="bg-gradient-primary text-white font-semibold rounded-xl hover:opacity-90 transition-opacity text-sm sm:text-base" data-testid="nav-signup">
+                    Sign Up Free
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>

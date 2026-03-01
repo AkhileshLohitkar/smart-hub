@@ -1,22 +1,12 @@
 import { useEffect, useState } from "react";
 import { WorksheetForm } from "@/components/WorksheetForm";
-import { Sparkles, Brain, Printer, CheckCircle, LogOut, User, Loader2, FileText, Users, ClipboardList, UserPlus, Crown, X, CreditCard } from "lucide-react";
+import { Sparkles, Brain, Printer, CheckCircle, Loader2, UserPlus, Crown, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useChildren } from "@/hooks/use-children";
 import { Button } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { AppNav } from "@/components/AppNav";
 import { Link, useLocation } from "wouter";
-import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
-
-const PLAN_LABELS: Record<string, string> = {
-  free: "Free",
-  starter: "Starter",
-  starter_annual: "Starter",
-  family: "Family",
-  family_annual: "Family",
-  no_watermark: "Premium",
-};
 
 export default function Home() {
   const { data: user, isLoading } = useUser();
@@ -64,64 +54,7 @@ export default function Home() {
       <div className="absolute top-0 right-0 -translate-y-1/4 translate-x-1/4 w-[800px] h-[800px] bg-gradient-primary opacity-5 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 translate-y-1/4 -translate-x-1/4 w-[600px] h-[600px] bg-gradient-warm opacity-5 rounded-full blur-3xl pointer-events-none" />
 
-      <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50 no-print">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
-            <span className="text-xl font-display font-bold text-gradient-primary" data-testid="logo-text">Qik Worksheets</span>
-          </Link>
-          <div className="flex items-center gap-3 flex-wrap">
-            {user && (
-              <>
-                <Link href="/children">
-                  <Button variant="ghost" size="sm" data-testid="link-my-children">
-                    <Users className="w-4 h-4 mr-1" /> My Children
-                  </Button>
-                </Link>
-                <Link href="/history">
-                  <Button variant="ghost" size="sm" data-testid="link-my-worksheets">
-                    <FileText className="w-4 h-4 mr-1" /> My Worksheets
-                  </Button>
-                </Link>
-                <Link href="/test-prep">
-                  <Button variant="ghost" size="sm" data-testid="link-test-prep">
-                    <ClipboardList className="w-4 h-4 mr-1" /> Test Prep
-                  </Button>
-                </Link>
-                {user.plan !== "free" && (
-                  <Link href="/#pricing">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      data-testid="button-manage-subscription"
-                    >
-                      <CreditCard className="w-4 h-4 mr-1" />
-                      My Plan
-                    </Button>
-                  </Link>
-                )}
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <User className="w-4 h-4" />
-                  <span data-testid="text-username">{user.name}</span>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-gradient-primary text-white font-medium" data-testid="text-plan">
-                    {PLAN_LABELS[user.plan] || user.plan}
-                  </span>
-                </div>
-                <ThemeToggle />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => logoutMutation.mutate()}
-                  className="text-muted-foreground"
-                  data-testid="button-logout"
-                >
-                  <LogOut className="w-4 h-4 mr-1" /> Logout
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </nav>
+      <AppNav user={user} onLogout={() => logoutMutation.mutate()} />
 
       <AnimatePresence>
         {!childrenLoading && user && (!childrenData || childrenData.length === 0) && (
