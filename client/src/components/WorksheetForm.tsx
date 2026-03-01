@@ -117,8 +117,10 @@ export function WorksheetForm() {
 
   const onSubmit = async (data: FormValues) => {
     try {
+      const activeBook = chapterBooks.length === 1 ? chapterBooks[0]?.bookName : selectedBook;
       const payload = {
         ...data,
+        ncertBook: (board === "CBSE" && activeBook) ? activeBook : undefined,
         questionTypes: selectedQuestionTypes.length > 0 ? selectedQuestionTypes : undefined,
       };
       const res = await apiRequest("POST", "/api/worksheets/generate", payload);
@@ -369,7 +371,10 @@ export function WorksheetForm() {
                               </div>
                               <Select
                                 value={field.value || ""}
-                                onValueChange={(val) => field.onChange(val)}
+                                onValueChange={(val) => {
+                                  field.onChange(val);
+                                  form.setValue("chapter", val);
+                                }}
                               >
                                 <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-chapter">
                                   <SelectValue placeholder="Select a chapter" />
@@ -390,6 +395,7 @@ export function WorksheetForm() {
                                 onValueChange={(val) => {
                                   setSelectedBook(val);
                                   field.onChange("");
+                                  form.setValue("chapter", "");
                                 }}
                               >
                                 <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-book">
@@ -406,7 +412,10 @@ export function WorksheetForm() {
                               {selectedBookData && (
                                 <Select
                                   value={field.value || ""}
-                                  onValueChange={(val) => field.onChange(val)}
+                                  onValueChange={(val) => {
+                                    field.onChange(val);
+                                    form.setValue("chapter", val);
+                                  }}
                                 >
                                   <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-chapter">
                                     <SelectValue placeholder="Select a chapter" />

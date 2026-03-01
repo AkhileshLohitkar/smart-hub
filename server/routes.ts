@@ -25,7 +25,8 @@ export async function registerRoutes(
 
       const rawBody = req.body;
       const questionTypes: string[] = rawBody.questionTypes || [];
-      const { questionTypes: _qt, ...worksheetBody } = rawBody;
+      const ncertBook: string | undefined = rawBody.ncertBook;
+      const { questionTypes: _qt, ncertBook: _nb, ...worksheetBody } = rawBody;
       const input = api.worksheets.generate.input.parse(worksheetBody);
       const userId = req.user.id;
 
@@ -51,14 +52,18 @@ export async function registerRoutes(
         ? `\nREQUIRED QUESTION TYPES: The worksheet MUST include sections for ONLY these question types: ${questionTypes.map(t => questionTypeMap[t] || t).join(", ")}. Distribute the questions across these types.`
         : "";
 
+      const ncertBookLine = ncertBook ? `\nNCERT Textbook: ${ncertBook}` : '';
+      const chapterRef = input.chapter || input.topic || "Not specified";
+      const ncertInstruction = ncertBook ? `\nCRITICAL: This worksheet MUST be based STRICTLY on the content from the NCERT textbook "${ncertBook}" for ${input.className} ${input.board}. The chapter "${chapterRef}" is from this specific textbook. All questions, concepts, terminology, examples, and answers must come directly from this textbook chapter. Do NOT use content from other sources or make up questions that are not covered in this NCERT chapter. Follow the exact syllabus, definitions, and explanations as given in the NCERT textbook.` : '';
+
       const prompt = `Generate a printable educational worksheet with the following requirements:
 Class/Standard: ${input.className}
 Education Board: ${input.board}
-Subject: ${input.subject}
+Subject: ${input.subject}${ncertBookLine}
 Chapter: ${input.chapter || "Not specified"}
 Topic: ${input.topic}
 Difficulty: ${input.difficulty}
-Approximate Number of questions: ${Math.min(input.length, 30)}${requestedTypes}
+Approximate Number of questions: ${Math.min(input.length, 30)}${requestedTypes}${ncertInstruction}
 
 The output must be strictly in JSON format matching this structure:
 {
@@ -109,7 +114,7 @@ IMPORTANT RULES:
 9. For "identify_sketch" type: use "short_answer" as the section type with title "Identify from Sketch". Each question must describe a simple sketch or diagram in words (e.g., "A sketch shows a plant with arrows pointing to different parts labeled A, B, C, D"), then ask the student to identify or label the parts. Set answerSpaceLines to 2.
 10. Generate a COMPLETE answerKey for ALL questions in ALL sections. The answer field should contain the correct answer text.
 11. Make the worksheet compact and well-organized to fit maximum content on A4 paper.
-12. Ensure questions are strictly aligned with the specified board syllabus and appropriate for the class level.
+12. Ensure questions are strictly aligned with the specified board syllabus, NCERT textbook (if specified), and appropriate for the class level. When an NCERT textbook is specified, ALL questions must come from that specific textbook's chapter content — use the same terminology, definitions, diagrams, and examples as in the textbook.
 13. Maximum number of questions is 30. Do not exceed this limit.
 ${isYoungClass ? `14. This is for a YOUNG LEARNER (${input.className}). Include a "graphicEmojis" array with 3-5 fun, relevant emoji characters that match the topic (e.g. animals 🐕🐈, fruits 🍎🍌, shapes 🔵🔺). These will be displayed as decorative elements.
 15. For Nursery, KG 1, and KG 2 classes: Focus on age-appropriate activities like tracing, coloring prompts, simple matching, picture identification, basic counting (1-20), letter recognition, number recognition, and simple patterns. Use very simple, child-friendly language. Keep questions short and visual.` : ''}`;
@@ -117,7 +122,7 @@ ${isYoungClass ? `14. This is for a YOUNG LEARNER (${input.className}). Include 
       const response = await openai.chat.completions.create({
         model: "gpt-5.1",
         messages: [
-          { role: "system", content: "You are an expert educator who designs high-quality, syllabus-aligned worksheets. Always include a complete answer key." },
+          { role: "system", content: "You are an expert Indian educator who designs high-quality, syllabus-aligned worksheets based on NCERT and other board-prescribed textbooks. When an NCERT textbook and chapter are specified, you MUST generate questions strictly from that specific chapter's content — use the exact concepts, definitions, examples, exercises, and terminology from the textbook. Do NOT generate generic or random questions. Always include a complete answer key." },
           { role: "user", content: prompt }
         ],
         response_format: { type: "json_object" },
