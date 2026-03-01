@@ -1,5 +1,7 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import { Strategy as FacebookStrategy } from "passport-facebook";
 import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
@@ -62,6 +64,7 @@ export function setupAuth(app: Express) {
         try {
           const user = await storage.getUserByEmail(email);
           if (!user) return done(null, false, { message: "Invalid email or password" });
+          if (!user.password) return done(null, false, { message: "This account uses social login. Please sign in with Google or Facebook." });
           const isValid = await comparePasswords(password, user.password);
           if (!isValid) return done(null, false, { message: "Invalid email or password" });
           return done(null, user);
@@ -71,6 +74,91 @@ export function setupAuth(app: Express) {
       }
     )
   );
+
+  const appUrl = process.env.REPLIT_DEV_DOMAIN
+    ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+    : process.env.REPL_SLUG
+      ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
+      : "http://localhost:5000";
+
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+    passport.use(
+      new GoogleStrategy(
+        {
+          clientID: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+          callbackURL: `${appUrl}/api/auth/google/callback`,
+        },
+        async (_accessToken, _refreshToken, profile, done) => {
+          try {
+            const googleId = profile.id;
+            const email = profile.emails?.[0]?.value;
+            const name = profile.displayName || email || "User";
+
+            let user = await storage.getUserByGoogleId(googleId);
+            if (user) return done(null, user);
+
+            if (email) {
+              user = await storage.getUserByEmail(email);
+              if (user) {
+                user = await storage.linkGoogleId(user.id, googleId);
+                return done(null, user);
+              }
+            }
+
+            user = await storage.createOAuthUser({
+              email: email || `google_${googleId}@oauth.local`,
+              name,
+              googleId,
+            });
+            return done(null, user);
+          } catch (err) {
+            return done(err as Error);
+          }
+        }
+      )
+    );
+  }
+
+  if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
+    passport.use(
+      new FacebookStrategy(
+        {
+          clientID: process.env.FACEBOOK_APP_ID,
+          clientSecret: process.env.FACEBOOK_APP_SECRET,
+          callbackURL: `${appUrl}/api/auth/facebook/callback`,
+          profileFields: ["id", "displayName", "emails"],
+        },
+        async (_accessToken: string, _refreshToken: string, profile: any, done: any) => {
+          try {
+            const facebookId = profile.id;
+            const email = profile.emails?.[0]?.value;
+            const name = profile.displayName || email || "User";
+
+            let user = await storage.getUserByFacebookId(facebookId);
+            if (user) return done(null, user);
+
+            if (email) {
+              user = await storage.getUserByEmail(email);
+              if (user) {
+                user = await storage.linkFacebookId(user.id, facebookId);
+                return done(null, user);
+              }
+            }
+
+            user = await storage.createOAuthUser({
+              email: email || `fb_${facebookId}@oauth.local`,
+              name,
+              facebookId,
+            });
+            return done(null, user);
+          } catch (err) {
+            return done(err as Error);
+          }
+        }
+      )
+    );
+  }
 
   passport.serializeUser((user: Express.User, done) => {
     done(null, user.id);
@@ -83,6 +171,31 @@ export function setupAuth(app: Express) {
     } catch (err) {
       done(err);
     }
+  });
+
+  app.get("/api/auth/google", passport.authenticate("google", { scope: ["profile", "email"] }));
+  app.get(
+    "/api/auth/google/callback",
+    passport.authenticate("google", { failureRedirect: "/auth?error=google_failed" }),
+    (_req, res) => {
+      res.redirect("/dashboard");
+    }
+  );
+
+  app.get("/api/auth/facebook", passport.authenticate("facebook", { scope: ["email"] }));
+  app.get(
+    "/api/auth/facebook/callback",
+    passport.authenticate("facebook", { failureRedirect: "/auth?error=facebook_failed" }),
+    (_req, res) => {
+      res.redirect("/dashboard");
+    }
+  );
+
+  app.get("/api/auth/oauth-status", (_req, res) => {
+    res.json({
+      google: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+      facebook: !!(process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET),
+    });
   });
 
   app.post("/api/auth/register", async (req, res) => {

@@ -5,7 +5,12 @@ import { eq, and, desc, sql } from "drizzle-orm";
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByGoogleId(googleId: string): Promise<User | undefined>;
+  getUserByFacebookId(facebookId: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  createOAuthUser(data: { email: string; name: string; googleId?: string; facebookId?: string }): Promise<User>;
+  linkGoogleId(userId: number, googleId: string): Promise<User>;
+  linkFacebookId(userId: number, facebookId: string): Promise<User>;
   updateUserPlan(userId: number, plan: string, maxChildren: number, expiresAt: Date | null): Promise<User>;
   updateRazorpayCustomerId(userId: number, razorpayCustomerId: string): Promise<User>;
   incrementWorksheetCount(userId: number): Promise<void>;
@@ -30,9 +35,40 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getUserByGoogleId(googleId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.googleId, googleId));
+    return user;
+  }
+
+  async getUserByFacebookId(facebookId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.facebookId, facebookId));
+    return user;
+  }
+
   async createUser(user: InsertUser): Promise<User> {
     const [created] = await db.insert(users).values(user).returning();
     return created;
+  }
+
+  async createOAuthUser(data: { email: string; name: string; googleId?: string; facebookId?: string }): Promise<User> {
+    const [created] = await db.insert(users).values({
+      email: data.email,
+      name: data.name,
+      password: "",
+      googleId: data.googleId || null,
+      facebookId: data.facebookId || null,
+    }).returning();
+    return created;
+  }
+
+  async linkGoogleId(userId: number, googleId: string): Promise<User> {
+    const [updated] = await db.update(users).set({ googleId }).where(eq(users.id, userId)).returning();
+    return updated;
+  }
+
+  async linkFacebookId(userId: number, facebookId: string): Promise<User> {
+    const [updated] = await db.update(users).set({ facebookId }).where(eq(users.id, userId)).returning();
+    return updated;
   }
 
   async updateUserPlan(userId: number, plan: string, maxChildren: number, expiresAt: Date | null): Promise<User> {

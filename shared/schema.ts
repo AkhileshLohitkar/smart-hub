@@ -5,8 +5,10 @@ import { z } from "zod";
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
-  password: text("password").notNull(),
+  password: text("password").notNull().default(""),
   name: text("name").notNull(),
+  googleId: text("google_id"),
+  facebookId: text("facebook_id"),
   plan: text("plan").notNull().default("free"),
   planExpiresAt: timestamp("plan_expires_at"),
   maxChildren: integer("max_children").notNull().default(1),
