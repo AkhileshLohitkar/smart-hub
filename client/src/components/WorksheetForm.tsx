@@ -29,6 +29,7 @@ import { useLocation } from "wouter";
 import { insertWorksheetSchema } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { findNcertBooks } from "@/lib/ncertBooks";
+import { getEnglishBooks, type BookInfo } from "@/lib/englishChapters";
 
 const QUESTION_TYPES = [
   { id: "mcq", label: "Multiple Choice (MCQ)" },
@@ -54,6 +55,7 @@ export function WorksheetForm() {
   const { data: children } = useChildren();
   const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
   const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<string[]>([]);
+  const [selectedBook, setSelectedBook] = useState<string>("");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -96,6 +98,10 @@ export function WorksheetForm() {
   const [subject, className, board] = form.watch(["subject", "className", "board"]);
 
   const ncertBooks = (board === "CBSE" && className && subject) ? findNcertBooks(className, subject) : [];
+
+  const isEnglish = subject?.toLowerCase().includes("english") || subject?.toLowerCase().includes("eng");
+  const englishBooks: BookInfo[] = (isEnglish && className) ? getEnglishBooks(className) : [];
+  const selectedBookData = englishBooks.find(b => b.bookName === selectedBook);
 
   const toggleQuestionType = (typeId: string) => {
     setSelectedQuestionTypes(prev =>
@@ -349,10 +355,58 @@ export function WorksheetForm() {
                       <FormDescription className="mt-2">Be as specific as possible for better results.</FormDescription>
                     </TabsContent>
                     <TabsContent value="chapters">
-                      <div className="p-4 border-2 border-dashed rounded-xl text-center text-sm text-muted-foreground bg-muted/30">
-                        <p>Select chapters from the curriculum</p>
-                        <p className="text-xs mt-1 italic font-sans">AI will generate a worksheet covering standard chapters for {subject || "the selected subject"}</p>
-                      </div>
+                      {englishBooks.length > 0 ? (
+                        <div className="space-y-3">
+                          <Select
+                            value={selectedBook}
+                            onValueChange={(val) => {
+                              setSelectedBook(val);
+                              field.onChange("");
+                            }}
+                          >
+                            <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-book">
+                              <SelectValue placeholder="Select a textbook" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {englishBooks.map((book) => (
+                                <SelectItem key={book.bookName} value={book.bookName} data-testid={`option-book-${book.bookName}`}>
+                                  {book.bookName} ({book.publisher})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {selectedBookData && (
+                            <Select
+                              value={field.value || ""}
+                              onValueChange={(val) => field.onChange(val)}
+                            >
+                              <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-chapter">
+                                <SelectValue placeholder="Select a chapter" />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-[300px]">
+                                {selectedBookData.chapters.map((ch, idx) => (
+                                  <SelectItem key={idx} value={ch} data-testid={`option-chapter-${idx}`}>
+                                    {idx + 1}. {ch}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                          {selectedBookData && field.value && (
+                            <p className="text-xs text-muted-foreground">
+                              Worksheet will be based on: <span className="font-medium text-foreground">{field.value}</span> from {selectedBook}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-4 border-2 border-dashed rounded-xl text-center text-sm text-muted-foreground bg-muted/30">
+                          {!className || !subject ? (
+                            <p>Select a grade and enter "English" as the subject to see available chapters</p>
+                          ) : (
+                            <p>No chapter list available for {subject} ({className}). Use the "Specific Topic" tab to enter your topic manually.</p>
+                          )}
+                        </div>
+                      )}
                     </TabsContent>
                   </Tabs>
                   <FormMessage />

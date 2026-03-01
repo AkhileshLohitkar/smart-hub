@@ -87,10 +87,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createWorksheet(worksheet: InsertWorksheet, content: any, userId?: number): Promise<WorksheetResponse> {
+    const now = new Date();
+    const datePart = now.toISOString().slice(2, 10).replace(/-/g, '');
+    const countResult = await db.select({ count: sql<number>`count(*)` }).from(worksheets);
+    const globalCount = Number(countResult[0]?.count || 0) + 1;
+    const serialNumber = `QW-${datePart}-${String(globalCount).padStart(5, '0')}`;
+
     const [created] = await db.insert(worksheets).values({
       ...worksheet,
       content,
       userId: userId || null,
+      serialNumber,
     }).returning();
     return created;
   }

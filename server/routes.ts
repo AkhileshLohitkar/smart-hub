@@ -169,6 +169,22 @@ ${isYoungClass ? `14. This is for a YOUNG LEARNER (${input.className}). Include 
     }
   });
 
+  app.post("/api/worksheets/:id/verify-answer-password", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Please log in" });
+      }
+      const { password } = req.body;
+      const answerPassword = process.env.ANSWER_KEY_PASSWORD || "qikws2024";
+      if (password === answerPassword) {
+        return res.json({ authorized: true });
+      }
+      return res.status(403).json({ authorized: false, message: "Incorrect password" });
+    } catch (err) {
+      res.status(500).json({ message: "Failed to verify password" });
+    }
+  });
+
   app.post("/api/test-prep/generate", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {

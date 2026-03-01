@@ -29,6 +29,7 @@ export const children = pgTable("children", {
 
 export const worksheets = pgTable("worksheets", {
   id: serial("id").primaryKey(),
+  serialNumber: text("serial_number"),
   userId: integer("user_id"),
   className: text("class_name").notNull(),
   board: text("board").notNull(),
