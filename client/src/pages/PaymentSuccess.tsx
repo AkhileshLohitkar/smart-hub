@@ -4,7 +4,7 @@ import { CheckCircle, ArrowRight, Sparkles, Crown, Star, Loader2 } from "lucide-
 import { Button } from "@/components/ui/button";
 import { queryClient } from "@/lib/queryClient";
 import { useUser } from "@/hooks/use-auth";
-import logoImage from "@assets/IMG_6540_1772323083109.jpg";
+import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
 import { motion } from "framer-motion";
 
 const planDetails: Record<string, { label: string; perks: string[] }> = {
@@ -55,7 +55,7 @@ export default function PaymentSuccess() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 dark:from-gray-950 dark:via-purple-950/30 dark:to-gray-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
       {showConfetti && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
           {Array.from({ length: 30 }).map((_, i) => (
@@ -86,7 +86,7 @@ export default function PaymentSuccess() {
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="bg-white p-8 sm:p-10 rounded-3xl shadow-2xl max-w-lg w-full text-center border border-border relative z-10"
+        className="bg-white dark:bg-gray-900 p-8 sm:p-10 rounded-3xl shadow-2xl max-w-lg w-full text-center border border-border relative z-10"
       >
         <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 mx-auto mb-4 rounded-lg object-contain logo-vibrant" />
 
@@ -128,10 +128,10 @@ export default function PaymentSuccess() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-5 mb-6 text-left"
+          className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/50 dark:to-pink-950/50 rounded-2xl p-5 mb-6 text-left"
         >
-          <h3 className="font-semibold text-sm text-purple-800 mb-3 flex items-center gap-2">
-            <Star className="w-4 h-4 text-purple-600" />
+          <h3 className="font-semibold text-sm text-purple-800 dark:text-purple-300 mb-3 flex items-center gap-2">
+            <Star className="w-4 h-4 text-purple-600 dark:text-purple-400" />
             Your plan includes:
           </h3>
           <ul className="space-y-2">
@@ -141,7 +141,7 @@ export default function PaymentSuccess() {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.6 + i * 0.1 }}
-                className="flex items-center gap-2 text-sm text-purple-900"
+                className="flex items-center gap-2 text-sm text-purple-900 dark:text-purple-200"
               >
                 <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
                 {perk}

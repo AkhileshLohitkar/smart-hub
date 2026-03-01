@@ -3,7 +3,8 @@ import { useUser, useLogout } from "@/hooks/use-auth";
 import { useChildren, useCreateChild, useDeleteChild } from "@/hooks/use-children";
 import { Link, useLocation } from "wouter";
 import { LogOut, User, Loader2, Plus, Trash2, Users } from "lucide-react";
-import logoImage from "@assets/IMG_6540_1772323083109.jpg";
+import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -95,7 +96,7 @@ export default function Children() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <nav className="bg-white/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50">
+      <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-3">
           <Link href="/dashboard" className="flex items-center gap-2">
             <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
@@ -115,6 +116,7 @@ export default function Children() {
                 {user.plan}
               </Badge>
             </div>
+            <ThemeToggle />
             <Button
               variant="ghost"
               size="sm"

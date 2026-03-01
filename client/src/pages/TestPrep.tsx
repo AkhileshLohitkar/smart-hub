@@ -3,7 +3,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, Sparkles, BookOpen, LayoutList, Settings2, Plus, X, ClipboardList, LogOut, User, FileText, Users, Home as HomeIcon } from "lucide-react";
-import logoImage from "@assets/IMG_6540_1772323083109.jpg";
+import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -145,7 +146,7 @@ export default function TestPrep() {
       <div className="absolute top-0 right-0 -translate-y-1/4 translate-x-1/4 w-[800px] h-[800px] bg-gradient-primary opacity-5 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 translate-y-1/4 -translate-x-1/4 w-[600px] h-[600px] bg-gradient-warm opacity-5 rounded-full blur-3xl pointer-events-none" />
 
-      <nav className="bg-white/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50 no-print">
+      <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50 no-print">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-2">
             <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
@@ -171,6 +172,7 @@ export default function TestPrep() {
               <User className="w-4 h-4" />
               <span data-testid="text-username">{user.name}</span>
             </div>
+            <ThemeToggle />
             <Button
               variant="ghost"
               size="sm"

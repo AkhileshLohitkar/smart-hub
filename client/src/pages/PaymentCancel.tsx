@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { XCircle, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import logoImage from "@assets/IMG_6540_1772323083109.jpg";
+import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
 
 export default function PaymentCancel() {
   return (

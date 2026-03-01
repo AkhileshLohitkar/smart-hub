@@ -5,8 +5,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useChildren } from "@/hooks/use-children";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Link, useLocation } from "wouter";
-import logoImage from "@assets/IMG_6540_1772323083109.jpg";
+import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
 
 const PLAN_LABELS: Record<string, string> = {
   free: "Free",
@@ -63,7 +64,7 @@ export default function Home() {
       <div className="absolute top-0 right-0 -translate-y-1/4 translate-x-1/4 w-[800px] h-[800px] bg-gradient-primary opacity-5 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 translate-y-1/4 -translate-x-1/4 w-[600px] h-[600px] bg-gradient-warm opacity-5 rounded-full blur-3xl pointer-events-none" />
 
-      <nav className="bg-white/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50 no-print">
+      <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50 no-print">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-2">
             <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
@@ -106,6 +107,7 @@ export default function Home() {
                     {PLAN_LABELS[user.plan] || user.plan}
                   </span>
                 </div>
+                <ThemeToggle />
                 <Button
                   variant="ghost"
                   size="sm"
@@ -127,14 +129,14 @@ export default function Home() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-200"
+            className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/50 dark:to-pink-950/50 border-b border-purple-200 dark:border-purple-800"
           >
             <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="bg-gradient-primary rounded-full p-2">
                   <UserPlus className="w-4 h-4 text-white" />
                 </div>
-                <p className="text-sm font-medium text-purple-900">
+                <p className="text-sm font-medium text-purple-900 dark:text-purple-200">
                   Add your child's profile to get started with personalized worksheets
                 </p>
               </div>
@@ -151,14 +153,14 @@ export default function Home() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200"
+            className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/50 dark:to-orange-950/50 border-b border-amber-200 dark:border-amber-800"
           >
             <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="bg-gradient-to-r from-amber-400 to-orange-500 rounded-full p-2">
                   <Crown className="w-4 h-4 text-white" />
                 </div>
-                <p className="text-sm font-medium text-amber-900">
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
                   Upgrade your plan for unlimited worksheets and more child profiles
                 </p>
               </div>

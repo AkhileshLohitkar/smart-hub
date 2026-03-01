@@ -5,8 +5,9 @@ import { z } from "zod";
 import { Link, useLocation, useSearch } from "wouter";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import logoImage from "@assets/IMG_6540_1772323083109.jpg";
+import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -83,6 +84,9 @@ export default function AuthPage() {
         className="w-full max-w-md relative z-10"
       >
         <div className="text-center mb-8">
+          <div className="flex justify-end mb-2">
+            <ThemeToggle />
+          </div>
           <Link href="/" className="inline-flex items-center gap-2 mb-4">
             <img src={logoImage} alt="Qik Worksheet" className="w-56 h-56 rounded-xl object-contain drop-shadow-lg logo-vibrant" data-testid="logo-image" />
             <span className="text-2xl font-display font-bold text-gradient-primary">Qik Worksheets</span>

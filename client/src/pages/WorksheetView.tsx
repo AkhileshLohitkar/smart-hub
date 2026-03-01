@@ -5,8 +5,9 @@ import { useUser } from "@/hooks/use-auth";
 import { WorksheetRender } from "@/components/WorksheetRender";
 import { StarRating } from "@/components/StarRating";
 import { ArrowLeft, Printer, Download, Loader2, MessageSquare } from "lucide-react";
-import logoImage from "@assets/IMG_6540_1772323083109.jpg";
+import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { motion } from "framer-motion";
@@ -215,7 +216,7 @@ export default function WorksheetView() {
 
   return (
     <div className="min-h-screen bg-muted/20 flex flex-col">
-      <div className="bg-white/80 backdrop-blur-lg border-b border-border/50 shadow-sm sticky top-0 z-50 no-print">
+      <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-border/50 shadow-sm sticky top-0 z-50 no-print">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
@@ -238,6 +239,7 @@ export default function WorksheetView() {
           </div>
 
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Button
               variant="outline"
               size="sm"

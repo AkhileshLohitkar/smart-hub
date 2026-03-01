@@ -42,7 +42,8 @@ Preferred communication style: Simple, everyday language.
 - **Graphics**: AI-generated worksheets include descriptions for minimalist, colorful graphics; emoji decorations for Nursery/KG/Grade 1-5
 - **Watermark**: Logo watermark on all worksheets; hidden for "no_watermark" plan users
 - **Child Selector**: WorksheetForm and TestPrep auto-fill grade/board from selected child profile
-- **Logo**: Qik Worksheet logo (`@assets/IMG_6540_1772323083109.jpg`) shown in nav bars across all pages (w-32), and as watermark on worksheets
+- **Logo**: Qik Worksheet logo (`@assets/IMG_6540_(1)_1772323458180.png`) shown in nav bars across all pages (w-32), and as watermark on worksheets
+- **Dark Mode**: Automatic dark/light mode based on system preference; manual toggle available in nav bars; ThemeProvider wraps app in App.tsx; CSS variables defined for `.dark` class in index.css
 - **Fonts**: Inter (sans), Outfit (display), Lora (serif)
 - **Path aliases**: `@/` maps to `client/src/`, `@shared/` maps to `shared/`
 

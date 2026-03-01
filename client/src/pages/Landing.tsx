@@ -2,8 +2,9 @@ import { useState, useCallback } from "react";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Brain, Printer, CheckCircle, Star, BookOpen, Users, Download, Sparkles, ArrowRight, Shield, Zap, Quote, Loader2 } from "lucide-react";
-import logoImage from "@assets/IMG_6540_1772323083109.jpg";
+import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useUser } from "@/hooks/use-auth";
@@ -219,13 +220,14 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-background">
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-lg border-b border-border/50">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-border/50">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
             <span className="text-xl font-display font-bold text-gradient-primary" data-testid="logo-text">Qik Worksheets</span>
           </Link>
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <Link href="/auth">
               <Button variant="ghost" className="font-semibold" data-testid="nav-login">Log In</Button>
             </Link>

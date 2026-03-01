@@ -7,7 +7,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, User, Loader2, Plus, Star, FileText, Calendar, ClipboardList } from "lucide-react";
 import type { Worksheet } from "@shared/schema";
-import logoImage from "@assets/IMG_6540_1772323083109.jpg";
+import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function History() {
   const { data: user, isLoading: userLoading } = useUser();
@@ -50,7 +51,7 @@ export default function History() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <nav className="bg-white/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50">
+      <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-3">
           <Link href="/dashboard" className="flex items-center gap-2">
             <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
@@ -76,6 +77,7 @@ export default function History() {
                     {user.plan}
                   </span>
                 </div>
+                <ThemeToggle />
                 <Button
                   variant="ghost"
                   size="sm"
