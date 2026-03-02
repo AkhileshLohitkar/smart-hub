@@ -218,9 +218,13 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
                   {worksheet.chapter && worksheet.chapter !== worksheet.topic ? `${worksheet.chapter} : ` : ''}{worksheet.topic}
                 </p>
               )}
-              <p className="text-gray-500 font-sans text-[10px] uppercase tracking-widest mt-1" data-testid="text-worksheet-meta">
+              {worksheet.serialNumber && (
+                <p className="text-gray-600 font-sans text-xs font-semibold mt-1 tracking-wide" data-testid="text-worksheet-serial">
+                  Ref: {worksheet.serialNumber}
+                </p>
+              )}
+              <p className="text-gray-500 font-sans text-[10px] uppercase tracking-widest mt-0.5" data-testid="text-worksheet-meta">
                 {worksheet.board} • {worksheet.difficulty}
-                {worksheet.serialNumber && ` • ${worksheet.serialNumber}`}
               </p>
             </div>
             

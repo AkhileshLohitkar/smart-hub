@@ -91,10 +91,8 @@ export default function WorksheetView() {
   };
 
   const renderBlockToPdf = async (
-    block: HTMLElement,
+    canvas: HTMLCanvasElement,
     pdf: any,
-    html2canvas: any,
-    a4WidthPx: number,
     margin: number,
     usableWidth: number,
     pdfHeight: number,
@@ -104,15 +102,6 @@ export default function WorksheetView() {
     watermarkAspect: number,
     isFirstBlock: boolean
   ) => {
-    const canvas = await html2canvas(block, {
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: "#ffffff",
-      windowWidth: a4WidthPx,
-      width: a4WidthPx,
-    });
-
     const sourcePageHeightPx = usableHeightMm / scaleFactor;
     const totalPages = Math.ceil(canvas.height / sourcePageHeightPx);
 

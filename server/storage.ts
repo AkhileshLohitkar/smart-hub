@@ -123,11 +123,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createWorksheet(worksheet: InsertWorksheet, content: any, userId?: number): Promise<WorksheetResponse> {
-    const now = new Date();
-    const datePart = now.toISOString().slice(2, 10).replace(/-/g, '');
-    const countResult = await db.select({ count: sql<number>`count(*)` }).from(worksheets);
-    const globalCount = Number(countResult[0]?.count || 0) + 1;
-    const serialNumber = `QW-${datePart}-${String(globalCount).padStart(5, '0')}`;
+    const board = (worksheet.board || "GEN").toUpperCase().replace(/\s+/g, '');
+    const subjectWords = (worksheet.subject || "SUB").trim().split(/\s+/);
+    const subjectInitials = subjectWords.length === 1
+      ? subjectWords[0].slice(0, 3).toUpperCase()
+      : subjectWords.map(w => w[0]).join('').toUpperCase().slice(0, 4);
+    const chapterRaw = worksheet.chapter || worksheet.topic || "GENERAL";
+    const chapterSlug = chapterRaw
+      .replace(/[^a-zA-Z0-9\s]/g, '')
+      .trim()
+      .split(/\s+/)
+      .slice(0, 3)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join('');
+
+    const matchPattern = `${board}-${subjectInitials}-${chapterSlug}-%`;
+    const countResult = await db.select({ count: sql<number>`count(*)` })
+      .from(worksheets)
+      .where(sql`${worksheets.serialNumber} LIKE ${matchPattern}`);
+    const seqNum = Number(countResult[0]?.count || 0) + 1;
+    const serialNumber = `${board}-${subjectInitials}-${chapterSlug}-${String(seqNum).padStart(3, '0')}`;
 
     const [created] = await db.insert(worksheets).values({
       ...worksheet,

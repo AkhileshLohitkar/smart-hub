@@ -155,6 +155,11 @@ export default function History() {
                     </Badge>
                   </div>
 
+                  {ws.serialNumber && (
+                    <p className="text-[10px] font-mono text-muted-foreground mb-2 tracking-wide" data-testid={`text-serial-${ws.id}`}>
+                      {ws.serialNumber}
+                    </p>
+                  )}
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Calendar className="w-3.5 h-3.5" />
                     <span data-testid={`text-date-${ws.id}`}>
