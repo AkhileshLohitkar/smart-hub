@@ -164,11 +164,10 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
   const GraphicPlaceholder = ({ graphic }: { graphic: any }) => {
     if (!isColor) return null;
     return (
-      <div className="flex flex-col items-center justify-center p-2 opacity-70 print:opacity-100">
-        <div className={`w-16 h-16 ${ACCENT.bgMedium} rounded-full flex items-center justify-center border-2 ${ACCENT.border}`}>
-          <Sparkles className={`w-8 h-8 ${ACCENT.text}`} />
+      <div className="flex flex-col items-center justify-center p-1 opacity-70 print:opacity-100">
+        <div className={`w-10 h-10 ${ACCENT.bgMedium} rounded-full flex items-center justify-center border ${ACCENT.border}`}>
+          <Sparkles className={`w-5 h-5 ${ACCENT.text}`} />
         </div>
-        <p className={`text-[10px] mt-1 ${ACCENT.textLight} font-sans max-w-[80px] text-center`}>{graphic.altText}</p>
       </div>
     );
   };
@@ -208,36 +207,40 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
           </div>
         )}
 
-        <div className={`flex justify-between items-end border-b-2 pb-3 mb-5 relative ${isColor ? ACCENT.borderMedium : 'border-black'}`}>
-          {isColor && content.graphics?.find(g => g.position === "top-right") && (
-            <div className="absolute -top-4 -right-4">
-              <GraphicPlaceholder graphic={content.graphics.find(g => g.position === "top-right")} />
+        <div className={`border-b-2 pb-3 mb-5 ${isColor ? ACCENT.borderMedium : 'border-black'}`}>
+          <div className="flex justify-between items-start gap-4">
+            <div className="flex-1 min-w-0">
+              <h1 className={`text-xl md:text-2xl font-bold font-display mb-1 ${isColor ? ACCENT.text : 'text-black'} break-words`}>
+                {content.title || `${worksheet.subject}: ${worksheet.topic}`}
+              </h1>
+              <p className="text-gray-600 font-sans text-xs uppercase tracking-wider">
+                {worksheet.board} • {worksheet.className} • {worksheet.difficulty}
+                {worksheet.chapter && ` • ${worksheet.chapter}`}
+              </p>
             </div>
-          )}
-          <div>
-            <h1 className={`text-2xl md:text-3xl font-bold font-display mb-1 ${isColor ? ACCENT.text : 'text-black'}`}>
-              {content.title || `${worksheet.subject}: ${worksheet.topic}`}
-            </h1>
-            <p className="text-gray-600 font-sans text-xs uppercase tracking-wider">
-              {worksheet.board} • {worksheet.className} • {worksheet.difficulty}
-              {worksheet.chapter && ` • ${worksheet.chapter}`}
-            </p>
+            
+            <div className="shrink-0 flex items-center gap-1">
+              {isYoungClass && content.graphicEmojis && content.graphicEmojis.length > 0 && (
+                <div className="flex gap-0.5" data-testid="emoji-header">
+                  {content.graphicEmojis.slice(0, 3).map((emoji, i) => (
+                    <span key={i} className="text-xl md:text-2xl" style={{ transform: `rotate(${(i - 1) * 15}deg)` }}>{emoji}</span>
+                  ))}
+                </div>
+              )}
+              {isColor && content.graphics?.find(g => g.position === "top-right") && (
+                <div className="hidden md:block">
+                  <GraphicPlaceholder graphic={content.graphics.find(g => g.position === "top-right")} />
+                </div>
+              )}
+            </div>
           </div>
-          
-          {isYoungClass && content.graphicEmojis && content.graphicEmojis.length > 0 && (
-            <div className="absolute -top-2 -right-2 flex gap-1" data-testid="emoji-header">
-              {content.graphicEmojis.slice(0, 3).map((emoji, i) => (
-                <span key={i} className="text-2xl" style={{ transform: `rotate(${(i - 1) * 15}deg)` }}>{emoji}</span>
-              ))}
-            </div>
-          )}
-          
-          <div className="hidden sm:block space-y-4 font-sans text-sm w-64">
-            <div className="flex items-end gap-2">
+
+          <div className="hidden sm:flex gap-6 mt-3 font-sans text-sm">
+            <div className="flex items-end gap-2 flex-1">
               <span className="font-semibold whitespace-nowrap">Name:</span>
               <div className="border-b border-gray-400 w-full"></div>
             </div>
-            <div className="flex items-end gap-2">
+            <div className="flex items-end gap-2 w-40">
               <span className="font-semibold whitespace-nowrap">Date:</span>
               <div className="border-b border-gray-400 w-full"></div>
             </div>
@@ -278,7 +281,7 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
                   </h2>
                 </div>
                 
-                {isColor && content.graphics?.find(g => g.position === "between-sections" && content.sections.indexOf(section) % 2 === 0) && (
+                {isColor && content.graphics?.find(g => g.position === "between-sections") && sIndex % 2 === 0 && (
                   <div className="hidden md:block">
                     <GraphicPlaceholder graphic={content.graphics.find(g => g.position === "between-sections")} />
                   </div>
