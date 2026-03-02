@@ -90,6 +90,59 @@ export default function WorksheetView() {
     pdf.restoreGraphicsState();
   };
 
+  const renderBlockToPdf = async (
+    block: HTMLElement,
+    pdf: any,
+    html2canvas: any,
+    a4WidthPx: number,
+    margin: number,
+    usableWidth: number,
+    pdfHeight: number,
+    scaleFactor: number,
+    usableHeightMm: number,
+    watermarkDataUrl: string,
+    watermarkAspect: number,
+    isFirstBlock: boolean
+  ) => {
+    const canvas = await html2canvas(block, {
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: "#ffffff",
+      windowWidth: a4WidthPx,
+      width: a4WidthPx,
+    });
+
+    const sourcePageHeightPx = usableHeightMm / scaleFactor;
+    const totalPages = Math.ceil(canvas.height / sourcePageHeightPx);
+
+    for (let page = 0; page < totalPages; page++) {
+      if (!(isFirstBlock && page === 0)) pdf.addPage();
+
+      const sy = page * sourcePageHeightPx;
+      const sh = Math.min(sourcePageHeightPx, canvas.height - sy);
+      const sw = canvas.width;
+
+      const pageCanvas = document.createElement("canvas");
+      pageCanvas.width = sw;
+      pageCanvas.height = sh;
+      const ctx = pageCanvas.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, sw, sh);
+        ctx.drawImage(canvas, 0, sy, sw, sh, 0, 0, sw, sh);
+      }
+
+      const pageImgData = pageCanvas.toDataURL("image/png");
+      const renderedHeight = sh * scaleFactor;
+      pdf.addImage(pageImgData, "PNG", margin, margin, usableWidth, renderedHeight);
+
+      if (watermarkDataUrl) {
+        addWatermarkToPage(pdf, watermarkDataUrl, pdf.internal.pageSize.getWidth(), pdfHeight, watermarkAspect);
+      }
+    }
+  };
+
   const handleDownload = async () => {
     if (!worksheetRef.current) return;
 
@@ -104,24 +157,11 @@ export default function WorksheetView() {
       existingWatermarks.forEach((el: Element) => (el as HTMLElement).style.display = 'none');
 
       const a4WidthPx = 794;
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        windowWidth: a4WidthPx,
-        width: a4WidthPx,
-      });
-
-      existingWatermarks.forEach((el: Element) => (el as HTMLElement).style.display = '');
-
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       const margin = 8;
       const usableWidth = pdfWidth - margin * 2;
-      const scaleFactor = usableWidth / canvas.width;
-      const totalScaledHeight = canvas.height * scaleFactor;
 
       let watermarkDataUrl = "";
       let watermarkAspect = 1;
@@ -144,35 +184,36 @@ export default function WorksheetView() {
         }
       }
 
-      const usableHeight = pdfHeight - margin * 2;
-      const sourcePageHeightPx = usableHeight / scaleFactor;
-      const totalPages = Math.ceil(canvas.height / sourcePageHeightPx);
+      const usableHeightMm = pdfHeight - margin * 2;
 
-      for (let page = 0; page < totalPages; page++) {
-        if (page > 0) pdf.addPage();
+      const worksheetContent = element.querySelector('#worksheet-content') as HTMLElement;
+      const answerSheet = element.querySelector('#answer-sheet-content') as HTMLElement;
 
-        const sy = page * sourcePageHeightPx;
-        const sh = Math.min(sourcePageHeightPx, canvas.height - sy);
-        const sw = canvas.width;
-
-        const pageCanvas = document.createElement("canvas");
-        pageCanvas.width = sw;
-        pageCanvas.height = sh;
-        const ctx = pageCanvas.getContext("2d");
-        if (ctx) {
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, sw, sh);
-          ctx.drawImage(canvas, 0, sy, sw, sh, 0, 0, sw, sh);
-        }
-
-        const pageImgData = pageCanvas.toDataURL("image/png");
-        const renderedHeight = sh * scaleFactor;
-        pdf.addImage(pageImgData, "PNG", margin, margin, usableWidth, renderedHeight);
-
-        if (watermarkDataUrl) {
-          addWatermarkToPage(pdf, watermarkDataUrl, pdfWidth, pdfHeight, watermarkAspect);
-        }
+      if (worksheetContent) {
+        const wsCanvas = await html2canvas(worksheetContent, {
+          scale: 2, useCORS: true, allowTaint: true, backgroundColor: "#ffffff",
+          windowWidth: a4WidthPx, width: a4WidthPx,
+        });
+        const wsScale = usableWidth / wsCanvas.width;
+        await renderBlockToPdf(
+          wsCanvas, pdf, margin, usableWidth, pdfHeight, wsScale, usableHeightMm,
+          watermarkDataUrl, watermarkAspect, true
+        );
       }
+
+      if (answerSheet) {
+        const asCanvas = await html2canvas(answerSheet, {
+          scale: 2, useCORS: true, allowTaint: true, backgroundColor: "#ffffff",
+          windowWidth: a4WidthPx, width: a4WidthPx,
+        });
+        const asScale = usableWidth / asCanvas.width;
+        await renderBlockToPdf(
+          asCanvas, pdf, margin, usableWidth, pdfHeight, asScale, usableHeightMm,
+          watermarkDataUrl, watermarkAspect, false
+        );
+      }
+
+      existingWatermarks.forEach((el: Element) => (el as HTMLElement).style.display = '');
 
       const fileName = `QikWorksheet_${worksheet?.subject}_${worksheet?.topic}_${id}.pdf`;
       pdf.save(fileName.replace(/\s+/g, "_"));

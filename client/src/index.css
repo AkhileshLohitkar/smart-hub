@@ -155,6 +155,13 @@
       page-break-inside: avoid;
       break-inside: avoid;
     }
+    #worksheet-content {
+      overflow: visible !important;
+    }
+    #answer-sheet-content {
+      page-break-before: always;
+      break-before: page;
+    }
     .print-a4 {
       width: 100% !important;
       min-height: auto !important;

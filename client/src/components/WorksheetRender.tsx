@@ -64,7 +64,7 @@ function AnswerSheet({ content }: { content: WorksheetContent }) {
   if (!hasAnswers && !hasInlineAnswers) return null;
 
   return (
-    <div className="bg-white text-black font-sans w-full max-w-4xl mx-auto shadow-2xl p-6 md:p-8 rounded-sm print-a4 print:shadow-none print:m-0 print:p-6 mt-4" style={{ pageBreakBefore: "always" }}>
+    <div className="bg-white text-black font-sans w-full max-w-4xl mx-auto shadow-2xl p-6 md:p-8 rounded-sm print-a4 print:shadow-none print:m-0 print:p-6 mt-4" id="answer-sheet-content" style={{ pageBreakBefore: "always" }}>
       <h2 className="text-base font-bold border-b-2 border-black pb-1.5 mb-3 uppercase tracking-wide" data-testid="text-answer-sheet-title">
         Answer Key
       </h2>
@@ -194,7 +194,7 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
           draggable={false}
         />
       )}
-      <div className="bg-white text-black font-serif w-full max-w-4xl mx-auto min-h-[297mm] shadow-2xl p-6 md:p-10 rounded-sm print-a4 print:shadow-none print:m-0 print:p-6 relative overflow-hidden" id="worksheet-content">
+      <div className="bg-white text-black font-serif w-full max-w-4xl mx-auto min-h-[297mm] shadow-2xl p-6 md:p-10 rounded-sm print-a4 print:shadow-none print:m-0 print:p-6 relative" id="worksheet-content">
         
         {showWatermark && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 print:hidden" data-testid="watermark-overlay">
@@ -207,15 +207,20 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
           </div>
         )}
 
-        <div className={`border-b-2 pb-3 mb-5 ${isColor ? ACCENT.borderMedium : 'border-black'}`}>
-          <div className="flex justify-between items-start gap-4">
+        <div className={`border-b-2 pb-3 mb-4 ${isColor ? ACCENT.borderMedium : 'border-black'}`}>
+          <div className="flex justify-between items-start gap-3">
             <div className="flex-1 min-w-0">
-              <h1 className={`text-xl md:text-2xl font-bold font-display mb-1 ${isColor ? ACCENT.text : 'text-black'} break-words`}>
-                {content.title || `${worksheet.subject}: ${worksheet.topic}`}
+              <h1 className={`text-lg md:text-xl font-bold font-display leading-tight ${isColor ? ACCENT.text : 'text-black'} break-words`} data-testid="text-worksheet-title">
+                {worksheet.className} — {worksheet.subject}
               </h1>
-              <p className="text-gray-600 font-sans text-xs uppercase tracking-wider">
-                {worksheet.board} • {worksheet.className} • {worksheet.difficulty}
-                {worksheet.chapter && ` • ${worksheet.chapter}`}
+              {(worksheet.chapter || worksheet.topic) && (
+                <p className={`text-sm md:text-base font-semibold mt-0.5 ${isColor ? 'text-[#0066FF]/80' : 'text-gray-800'}`} data-testid="text-worksheet-subtitle">
+                  {worksheet.chapter && worksheet.chapter !== worksheet.topic ? `${worksheet.chapter} : ` : ''}{worksheet.topic}
+                </p>
+              )}
+              <p className="text-gray-500 font-sans text-[10px] uppercase tracking-widest mt-1" data-testid="text-worksheet-meta">
+                {worksheet.board} • {worksheet.difficulty}
+                {worksheet.serialNumber && ` • ${worksheet.serialNumber}`}
               </p>
             </div>
             
@@ -235,26 +240,15 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
             </div>
           </div>
 
-          <div className="hidden sm:flex gap-6 mt-3 font-sans text-sm">
-            <div className="flex items-end gap-2 flex-1">
-              <span className="font-semibold whitespace-nowrap">Name:</span>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3 font-sans text-sm">
+            <div className="flex items-end gap-2 flex-1 min-w-[140px]">
+              <span className="font-semibold whitespace-nowrap text-xs">Name:</span>
               <div className="border-b border-gray-400 w-full"></div>
             </div>
-            <div className="flex items-end gap-2 w-40">
-              <span className="font-semibold whitespace-nowrap">Date:</span>
+            <div className="flex items-end gap-2 w-32 sm:w-36">
+              <span className="font-semibold whitespace-nowrap text-xs">Date:</span>
               <div className="border-b border-gray-400 w-full"></div>
             </div>
-          </div>
-        </div>
-
-        <div className="sm:hidden space-y-3 font-sans text-sm mb-5">
-          <div className="flex items-end gap-2">
-            <span className="font-semibold whitespace-nowrap">Name:</span>
-            <div className="border-b border-gray-400 w-full"></div>
-          </div>
-          <div className="flex items-end gap-2">
-            <span className="font-semibold whitespace-nowrap">Date:</span>
-            <div className="border-b border-gray-400 w-full"></div>
           </div>
         </div>
 
