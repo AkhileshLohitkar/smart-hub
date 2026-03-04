@@ -52,18 +52,23 @@ export async function registerRoutes(
         ? `\nREQUIRED QUESTION TYPES: The worksheet MUST include sections for ONLY these question types: ${questionTypes.map(t => questionTypeMap[t] || t).join(", ")}. Distribute the questions across these types.`
         : "";
 
-      const ncertBookLine = ncertBook ? `\nNCERT Textbook: ${ncertBook}` : '';
+      const isStateBoardInput = input.board.startsWith("State Board -");
+      const textbookLabel = ncertBook
+        ? (isStateBoardInput ? `\nState Board Textbook: ${ncertBook}` : `\nNCERT Textbook: ${ncertBook}`)
+        : '';
       const chapterRef = input.chapter || input.topic || "Not specified";
-      const ncertInstruction = ncertBook ? `\nCRITICAL: This worksheet MUST be based STRICTLY on the content from the NCERT textbook "${ncertBook}" for ${input.className} ${input.board}. The chapter "${chapterRef}" is from this specific textbook. All questions, concepts, terminology, examples, and answers must come directly from this textbook chapter. Do NOT use content from other sources or make up questions that are not covered in this NCERT chapter. Follow the exact syllabus, definitions, and explanations as given in the NCERT textbook.` : '';
+      const textbookInstruction = ncertBook
+        ? `\nCRITICAL: This worksheet MUST be based STRICTLY on the content from the textbook "${ncertBook}" for ${input.className} ${input.board}. The chapter "${chapterRef}" is from this specific textbook. All questions, concepts, terminology, examples, and answers must come directly from this textbook chapter. Do NOT use content from other sources or make up questions that are not covered in this chapter. Follow the exact syllabus, definitions, and explanations as given in the prescribed textbook.`
+        : '';
 
       const prompt = `Generate a printable educational worksheet with the following requirements:
 Class/Standard: ${input.className}
 Education Board: ${input.board}
-Subject: ${input.subject}${ncertBookLine}
+Subject: ${input.subject}${textbookLabel}
 Chapter: ${input.chapter || "Not specified"}
 Topic: ${input.topic}
 Difficulty: ${input.difficulty}
-Approximate Number of questions: ${Math.min(input.length, 30)}${requestedTypes}${ncertInstruction}
+Approximate Number of questions: ${Math.min(input.length, 30)}${requestedTypes}${textbookInstruction}
 
 The output must be strictly in JSON format matching this structure:
 {
@@ -122,7 +127,7 @@ ${isYoungClass ? `14. This is for a YOUNG LEARNER (${input.className}). Include 
       const response = await openai.chat.completions.create({
         model: "gpt-5.1",
         messages: [
-          { role: "system", content: "You are an expert Indian educator who designs high-quality, syllabus-aligned worksheets based on NCERT and other board-prescribed textbooks. When an NCERT textbook and chapter are specified, you MUST generate questions strictly from that specific chapter's content — use the exact concepts, definitions, examples, exercises, and terminology from the textbook. Do NOT generate generic or random questions. Always include a complete answer key." },
+          { role: "system", content: "You are an expert Indian educator who designs high-quality, syllabus-aligned worksheets based on NCERT, Balbharati (Maharashtra), SCERT AP (Andhra Pradesh), TN SCERT (Tamil Nadu), and other board-prescribed textbooks. When a textbook and chapter are specified, you MUST generate questions strictly from that specific chapter's content — use the exact concepts, definitions, examples, exercises, and terminology from the textbook. Do NOT generate generic or random questions. Always include a complete answer key." },
           { role: "user", content: prompt }
         ],
         response_format: { type: "json_object" },

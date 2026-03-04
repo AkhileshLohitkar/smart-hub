@@ -30,6 +30,7 @@ import { insertWorksheetSchema } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { findNcertBooks } from "@/lib/ncertBooks";
 import { getSubjectBooks, type BookInfo } from "@/lib/ncertChapters";
+import { STATE_BOARDS, getStateBoardBooks, type StateBoardBookInfo } from "@/lib/stateBoardChapters";
 
 const QUESTION_TYPES = [
   { id: "mcq", label: "Multiple Choice (MCQ)" },
@@ -56,6 +57,7 @@ export function WorksheetForm() {
   const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
   const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<string[]>([]);
   const [selectedBook, setSelectedBook] = useState<string>("");
+  const [selectedStateBoard, setSelectedStateBoard] = useState<string>("");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -80,7 +82,13 @@ export function WorksheetForm() {
       const child = children.find((c) => c.id === selectedChildId);
       if (child) {
         form.setValue("className", child.className);
-        form.setValue("board", child.board);
+        if (child.board.startsWith("State Board - ")) {
+          form.setValue("board", "State Board");
+          setSelectedStateBoard(child.board.replace("State Board - ", ""));
+        } else {
+          form.setValue("board", child.board);
+          setSelectedStateBoard("");
+        }
       }
     }
   }, [selectedChildId, children, form]);
@@ -90,6 +98,7 @@ export function WorksheetForm() {
       setSelectedChildId(null);
       form.setValue("className", "");
       form.setValue("board", "");
+      setSelectedStateBoard("");
       return;
     }
     setSelectedChildId(Number(value));
@@ -97,15 +106,27 @@ export function WorksheetForm() {
 
   const [subject, className, board] = form.watch(["subject", "className", "board"]);
 
+  const isStateBoard = board === "State Board";
+  const effectiveBoard = isStateBoard && selectedStateBoard ? `State Board - ${selectedStateBoard}` : board;
+
   const ncertBooks = (board === "CBSE" && className && subject) ? findNcertBooks(className, subject) : [];
 
-  const chapterBooks: BookInfo[] = (board === "CBSE" && className && subject) ? getSubjectBooks(className, subject) : [];
+  const cbseChapterBooks: BookInfo[] = (board === "CBSE" && className && subject) ? getSubjectBooks(className, subject) : [];
+  const stateBoardBooks: StateBoardBookInfo[] = (isStateBoard && selectedStateBoard && className && subject)
+    ? getStateBoardBooks(selectedStateBoard, className, subject) : [];
+  const chapterBooks: BookInfo[] = board === "CBSE" ? cbseChapterBooks : stateBoardBooks;
   const selectedBookData = chapterBooks.find(b => b.bookName === selectedBook);
 
   useEffect(() => {
     setSelectedBook("");
     form.setValue("topic", "");
   }, [subject, className, form]);
+
+  useEffect(() => {
+    if (!isStateBoard) {
+      setSelectedStateBoard("");
+    }
+  }, [board, isStateBoard]);
 
   const toggleQuestionType = (typeId: string) => {
     setSelectedQuestionTypes(prev =>
@@ -118,9 +139,12 @@ export function WorksheetForm() {
   const onSubmit = async (data: FormValues) => {
     try {
       const activeBook = chapterBooks.length === 1 ? chapterBooks[0]?.bookName : selectedBook;
+      const boardToSend = isStateBoard && selectedStateBoard ? `State Board - ${selectedStateBoard}` : data.board;
+      const hasTextbook = activeBook && (board === "CBSE" || (isStateBoard && selectedStateBoard));
       const payload = {
         ...data,
-        ncertBook: (board === "CBSE" && activeBook) ? activeBook : undefined,
+        board: boardToSend,
+        ncertBook: hasTextbook ? activeBook : undefined,
         questionTypes: selectedQuestionTypes.length > 0 ? selectedQuestionTypes : undefined,
       };
       const res = await apiRequest("POST", "/api/worksheets/generate", payload);
@@ -282,6 +306,34 @@ export function WorksheetForm() {
               )}
             />
 
+            {isStateBoard && (
+              <div className="col-span-1 md:col-span-2">
+                <label className="text-sm font-semibold text-foreground/80 flex items-center gap-2 mb-2">
+                  <LayoutList className="w-4 h-4 text-primary/70" /> Select State Board
+                </label>
+                <Select
+                  value={selectedStateBoard}
+                  onValueChange={(val) => {
+                    setSelectedStateBoard(val);
+                    setSelectedBook("");
+                    form.setValue("topic", "");
+                    form.setValue("chapter", "");
+                  }}
+                >
+                  <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-state-board">
+                    <SelectValue placeholder="Choose your state board" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATE_BOARDS.map((sb) => (
+                      <SelectItem key={sb.value} value={sb.value} data-testid={`option-state-${sb.value}`}>
+                        {sb.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Subject */}
             <FormField
               control={form.control}
@@ -309,6 +361,16 @@ export function WorksheetForm() {
                 <div>
                   <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-0.5">NCERT Recommended Textbook{ncertBooks.length > 1 ? 's' : ''}</p>
                   <p className="text-xs text-blue-600 dark:text-blue-400">{ncertBooks.join(" | ")}</p>
+                </div>
+              </div>
+            )}
+
+            {isStateBoard && selectedStateBoard && stateBoardBooks.length > 0 && (
+              <div className="col-span-1 md:col-span-2 flex items-start gap-2 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800" data-testid="text-state-board-books">
+                <BookMarked className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 mb-0.5">{selectedStateBoard} Board Textbook{stateBoardBooks.length > 1 ? 's' : ''}</p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">{stateBoardBooks.map(b => b.bookName).join(" | ")}</p>
                 </div>
               </div>
             )}
@@ -440,10 +502,14 @@ export function WorksheetForm() {
                         </div>
                       ) : (
                         <div className="p-4 border-2 border-dashed rounded-xl text-center text-sm text-muted-foreground bg-muted/30">
-                          {board !== "CBSE" ? (
-                            <p>Chapter lists are available for CBSE board. Select CBSE as the board to browse chapters.</p>
-                          ) : !className || !subject ? (
+                          {board === "CBSE" && (!className || !subject) ? (
                             <p>Select a grade and subject to see available NCERT chapters</p>
+                          ) : isStateBoard && !selectedStateBoard ? (
+                            <p>Select a state board above to browse available chapters.</p>
+                          ) : isStateBoard && selectedStateBoard && (!className || !subject) ? (
+                            <p>Select a grade and subject to see available {selectedStateBoard} board chapters.</p>
+                          ) : board !== "CBSE" && !isStateBoard ? (
+                            <p>Chapter lists are available for CBSE and State Boards. Select one to browse chapters.</p>
                           ) : (
                             <p>No chapter list available for {subject} ({className}). Use the "Specific Topic" tab to enter your topic manually.</p>
                           )}

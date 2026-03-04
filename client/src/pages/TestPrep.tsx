@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Sparkles, BookOpen, LayoutList, Settings2, Plus, X, ClipboardList, Users } from "lucide-react";
+import { Loader2, Sparkles, BookOpen, LayoutList, Settings2, Plus, X, ClipboardList, Users, BookMarked } from "lucide-react";
 import { AppNav } from "@/components/AppNav";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +28,7 @@ import { useUser, useLogout } from "@/hooks/use-auth";
 import { useChildren } from "@/hooks/use-children";
 import { useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
+import { STATE_BOARDS } from "@/lib/stateBoardChapters";
 
 const testPrepSchema = z.object({
   className: z.string().min(1, "Grade is required"),
@@ -49,6 +50,7 @@ export default function TestPrep() {
   const [selectedChildId, setSelectedChildId] = useState<string>("");
   const [topicInput, setTopicInput] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [selectedStateBoard, setSelectedStateBoard] = useState<string>("");
 
   const form = useForm<TestPrepValues>({
     resolver: zodResolver(testPrepSchema),
@@ -75,7 +77,13 @@ export default function TestPrep() {
   useEffect(() => {
     if (selectedChild) {
       form.setValue("className", selectedChild.className);
-      form.setValue("board", selectedChild.board);
+      if (selectedChild.board.startsWith("State Board - ")) {
+        form.setValue("board", "State Board");
+        setSelectedStateBoard(selectedChild.board.replace("State Board - ", ""));
+      } else {
+        form.setValue("board", selectedChild.board);
+        setSelectedStateBoard("");
+      }
     }
   }, [selectedChild, form]);
 
@@ -100,10 +108,18 @@ export default function TestPrep() {
     }
   };
 
+  const watchedBoard = form.watch("board");
+  const isStateBoard = watchedBoard === "State Board";
+
+  useEffect(() => {
+    if (!isStateBoard) setSelectedStateBoard("");
+  }, [watchedBoard, isStateBoard]);
+
   const onSubmit = async (data: TestPrepValues) => {
     setIsGenerating(true);
+    const boardToSend = isStateBoard && selectedStateBoard ? `State Board - ${selectedStateBoard}` : data.board;
     try {
-      const res = await apiRequest("POST", "/api/test-prep/generate", data);
+      const res = await apiRequest("POST", "/api/test-prep/generate", { ...data, board: boardToSend });
       const result = await res.json();
       toast({
         title: "Test Paper Generated",
@@ -269,6 +285,29 @@ export default function TestPrep() {
                         </FormItem>
                       )}
                     />
+
+                    {isStateBoard && (
+                      <div className="col-span-1 md:col-span-2">
+                        <label className="text-sm font-semibold text-foreground/80 flex items-center gap-2 mb-2">
+                          <LayoutList className="w-4 h-4 text-primary/70" /> Select State Board
+                        </label>
+                        <Select
+                          value={selectedStateBoard}
+                          onValueChange={setSelectedStateBoard}
+                        >
+                          <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-state-board">
+                            <SelectValue placeholder="Choose your state board" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STATE_BOARDS.map((sb) => (
+                              <SelectItem key={sb.value} value={sb.value} data-testid={`option-state-${sb.value}`}>
+                                {sb.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
 
                     <FormField
                       control={form.control}

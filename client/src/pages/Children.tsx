@@ -36,7 +36,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const boards = ["CBSE", "ICSE", "IGCSE", "State Board", "Common Core"];
+const boards = [
+  "CBSE", "ICSE", "IGCSE",
+  "State Board - Maharashtra",
+  "State Board - Andhra Pradesh",
+  "State Board - Tamil Nadu",
+  "Common Core",
+];
 const grades = [
   "Nursery", "KG 1", "KG 2",
   "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5",
