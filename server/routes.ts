@@ -12,6 +12,12 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
+const statePublisherMap: Record<string, string> = {
+  "Maharashtra": "Balbharati (Maharashtra State Bureau of Textbook Production and Curriculum Research)",
+  "Andhra Pradesh": "SCERT Andhra Pradesh (State Council of Educational Research and Training, AP)",
+  "Tamil Nadu": "TN SCERT (Tamil Nadu State Council of Educational Research and Training / Tamil Nadu Textbook and Educational Services Corporation)",
+};
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -53,13 +59,35 @@ export async function registerRoutes(
         : "";
 
       const isStateBoardInput = input.board.startsWith("State Board -");
+      const stateBoardName = isStateBoardInput ? input.board.replace("State Board - ", "") : "";
+      const publisher = statePublisherMap[stateBoardName] || "";
       const textbookLabel = ncertBook
-        ? (isStateBoardInput ? `\nState Board Textbook: ${ncertBook}` : `\nNCERT Textbook: ${ncertBook}`)
+        ? (isStateBoardInput ? `\nState Board Textbook: ${ncertBook} (Published by: ${publisher})` : `\nNCERT Textbook: ${ncertBook}`)
         : '';
       const chapterRef = input.chapter || input.topic || "Not specified";
-      const textbookInstruction = ncertBook
-        ? `\nCRITICAL: This worksheet MUST be based STRICTLY on the content from the textbook "${ncertBook}" for ${input.className} ${input.board}. The chapter "${chapterRef}" is from this specific textbook. All questions, concepts, terminology, examples, and answers must come directly from this textbook chapter. Do NOT use content from other sources or make up questions that are not covered in this chapter. Follow the exact syllabus, definitions, and explanations as given in the prescribed textbook.`
+
+      const stateBoardInstruction = isStateBoardInput && ncertBook
+        ? `\nCRITICAL STATE BOARD INSTRUCTION:
+This worksheet MUST be based EXCLUSIVELY on the official ${stateBoardName} state board textbook "${ncertBook}" published by ${publisher} for ${input.className}.
+Chapter/Lesson: "${chapterRef}"
+
+You MUST follow these rules strictly:
+1. Every question must come DIRECTLY from the content, stories, poems, exercises, examples, and concepts taught in this SPECIFIC chapter of this SPECIFIC textbook.
+2. Use the EXACT characters, plots, settings, themes, moral lessons, vocabulary, definitions, formulas, diagrams, and terminology as they appear in the textbook chapter.
+3. For literature/language chapters (stories, poems, prose): Reference the actual characters by name, actual events in the story/poem, actual dialogues, actual moral/message, and actual comprehension questions from the textbook.
+4. For Science/Math chapters: Use the exact definitions, theorems, formulas, worked examples, and exercise problems as given in the textbook.
+5. Do NOT generate generic questions on the topic. Every question must be answerable ONLY by someone who has read this specific chapter from this specific textbook.
+6. Include questions that test recall of specific details from the chapter (e.g., "What did [character name] do when...?", "According to the lesson, what is...?", "In the poem, the poet describes...").
+7. For answer keys, provide answers exactly as they would be found in the textbook.
+8. If the chapter is a story/narrative, include questions about: main characters, setting, plot events, climax, resolution, moral/message, new vocabulary from the lesson, and author (if mentioned).
+9. If the chapter is a poem, include questions about: poet name, rhyme scheme, figures of speech used, central theme, stanza-wise meaning, and difficult words from the poem.`
         : '';
+
+      const ncertInstruction = !isStateBoardInput && ncertBook
+        ? `\nCRITICAL: This worksheet MUST be based STRICTLY on the content from the NCERT textbook "${ncertBook}" for ${input.className} ${input.board}. The chapter "${chapterRef}" is from this specific textbook. All questions, concepts, terminology, examples, and answers must come directly from this textbook chapter. Do NOT use content from other sources or make up questions that are not covered in this chapter. Follow the exact syllabus, definitions, and explanations as given in the prescribed textbook.`
+        : '';
+
+      const textbookInstruction = stateBoardInstruction || ncertInstruction;
 
       const prompt = `Generate a printable educational worksheet with the following requirements:
 Class/Standard: ${input.className}
@@ -275,12 +303,13 @@ IMPORTANT RULES:
 10. For "mcq" type: set answerSpaceLines to 0.
 11. Generate a COMPLETE answerKey for ALL questions.
 12. Ensure questions are aligned with the ${input.board} syllabus for ${input.className}.
-13. Make it look like a proper school examination paper with clear section divisions.`;
+13. Make it look like a proper school examination paper with clear section divisions.
+${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.board.replace("State Board - ", "")} state board test. All questions MUST be based on the official prescribed textbooks published by ${statePublisherMap[input.board.replace("State Board - ", "")] || "the state board"}. Use actual content, terminology, examples, and exercises from the textbooks. Questions must be answerable by students who have studied these specific textbooks.` : ''}`;
 
       const response = await openai.chat.completions.create({
         model: "gpt-5.1",
         messages: [
-          { role: "system", content: "You are an expert educator who designs structured examination papers with proper marks distribution. Always ensure total marks match the required scheme exactly." },
+          { role: "system", content: "You are an expert Indian educator who designs structured examination papers with proper marks distribution based on NCERT, Balbharati (Maharashtra), SCERT AP (Andhra Pradesh), TN SCERT (Tamil Nadu), and other board-prescribed textbooks. Always ensure total marks match the required scheme exactly. When a specific state board is mentioned, generate questions strictly from the official prescribed textbooks of that board." },
           { role: "user", content: prompt }
         ],
         response_format: { type: "json_object" },
