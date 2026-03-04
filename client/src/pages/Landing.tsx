@@ -252,7 +252,7 @@ export default function Landing() {
         </div>
       </nav>
 
-      <section className="pt-32 pb-20 px-4 relative overflow-hidden">
+      <section className="pt-24 pb-14 px-4 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-primary opacity-5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-warm opacity-5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/4 pointer-events-none" />
 
@@ -262,33 +262,33 @@ export default function Landing() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <div className="mb-6">
-              <img src={logoImage} alt="Qik Worksheet" className="w-[28rem] h-[28rem] mx-auto mb-4 drop-shadow-xl object-contain logo-vibrant" data-testid="hero-logo" />
+            <div className="mb-3">
+              <img src={logoImage} alt="Qik Worksheet" className="w-40 h-40 sm:w-52 sm:h-52 mx-auto mb-2 drop-shadow-xl object-contain logo-vibrant" data-testid="hero-logo" />
             </div>
-            <Badge className="bg-gradient-primary text-white border-0 px-4 py-1.5 text-sm font-semibold mb-6">
+            <Badge className="bg-gradient-primary text-white border-0 px-4 py-1.5 text-sm font-semibold mb-4">
               <Sparkles className="w-4 h-4 mr-1.5" />
               AI-Powered Education
             </Badge>
 
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-display font-extrabold leading-tight mb-6">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-display font-extrabold leading-tight mb-4">
               Create perfect{" "}
               <span className="text-gradient-primary">worksheets</span>
               <br />in seconds.
             </h1>
 
-            <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
+            <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed">
               Qik Worksheets uses AI to generate curriculum-aligned, print-ready practice materials
               for CBSE, ICSE, IGCSE, and State Boards. Save hours of preparation time.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link href="/auth?tab=register">
-                <Button size="lg" className="bg-gradient-primary text-white font-bold rounded-xl text-lg px-8 py-6 hover:opacity-90 transition-opacity shadow-lg shadow-pink-500/20" data-testid="hero-get-started">
+                <Button size="lg" className="bg-gradient-primary text-white font-bold rounded-xl text-lg px-8 py-5 hover:opacity-90 transition-opacity shadow-lg shadow-pink-500/20" data-testid="hero-get-started">
                   Get Started Free <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
               <a href="#pricing">
-                <Button size="lg" variant="outline" className="font-bold rounded-xl text-lg px-8 py-6 border-2" data-testid="hero-view-plans">
+                <Button size="lg" variant="outline" className="font-bold rounded-xl text-lg px-8 py-5 border-2" data-testid="hero-view-plans">
                   View Plans
                 </Button>
               </a>
