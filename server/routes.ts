@@ -80,11 +80,14 @@ You MUST follow these rules strictly:
 6. Include questions that test recall of specific details from the chapter (e.g., "What did [character name] do when...?", "According to the lesson, what is...?", "In the poem, the poet describes...").
 7. For answer keys, provide answers exactly as they would be found in the textbook.
 8. If the chapter is a story/narrative, include questions about: main characters, setting, plot events, climax, resolution, moral/message, new vocabulary from the lesson, and author (if mentioned).
-9. If the chapter is a poem, include questions about: poet name, rhyme scheme, figures of speech used, central theme, stanza-wise meaning, and difficult words from the poem.`
+9. If the chapter is a poem, include questions about: poet name, rhyme scheme, figures of speech used, central theme, stanza-wise meaning, and difficult words from the poem.
+10. For language subjects (English, Hindi, Marathi, Telugu, Tamil), ALWAYS include grammar questions relevant to the chapter: parts of speech, tenses, sentence transformation, active/passive voice, direct/indirect speech, synonyms/antonyms, word meanings, spelling, punctuation, and any grammar exercises from the textbook chapter. Include vocabulary from the chapter with meanings.
+11. For Social Science/Social Studies, include map-based questions, timeline questions, and questions about key personalities, dates, events, and their significance as covered in the textbook.`
         : '';
 
+      const isLanguageSubject = ["english", "hindi", "marathi", "telugu", "tamil", "sanskrit", "urdu"].includes(input.subject.toLowerCase());
       const ncertInstruction = !isStateBoardInput && ncertBook
-        ? `\nCRITICAL: This worksheet MUST be based STRICTLY on the content from the NCERT textbook "${ncertBook}" for ${input.className} ${input.board}. The chapter "${chapterRef}" is from this specific textbook. All questions, concepts, terminology, examples, and answers must come directly from this textbook chapter. Do NOT use content from other sources or make up questions that are not covered in this chapter. Follow the exact syllabus, definitions, and explanations as given in the prescribed textbook.`
+        ? `\nCRITICAL: This worksheet MUST be based STRICTLY on the content from the NCERT textbook "${ncertBook}" for ${input.className} ${input.board}. The chapter "${chapterRef}" is from this specific textbook. All questions, concepts, terminology, examples, and answers must come directly from this textbook chapter. Do NOT use content from other sources or make up questions that are not covered in this chapter. Follow the exact syllabus, definitions, and explanations as given in the prescribed textbook.${isLanguageSubject ? ' For language chapters, include grammar questions (tenses, parts of speech, active/passive voice, direct/indirect speech, sentence transformation, synonyms/antonyms) and vocabulary from the chapter with meanings.' : ''}`
         : '';
 
       const textbookInstruction = stateBoardInstruction || ncertInstruction;
