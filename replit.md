@@ -30,6 +30,11 @@ Preferred communication style: Simple, everyday language.
   - `/test-prep` — Test paper generator with marks schemes (authenticated)
   - `/payment/success` — Stripe checkout success page (verifies session, updates plan)
   - `/payment/cancel` — Stripe checkout cancellation page
+  - `/about` — About Us page (public)
+  - `/terms` — Terms and Conditions page (public)
+  - `/privacy` — Privacy Policy page (public)
+  - `/refund-policy` — Refund and Cancellation Policy page (public)
+  - `/contact` — Contact Us page with FAQ (public)
 - **State Management**: `@tanstack/react-query` for server state, `react-hook-form` for form state
 - **UI Components**: shadcn/ui (new-york style) with Radix UI primitives, Tailwind CSS for styling
 - **Color Theme**: Instagram-inspired gradient (purple → pink → orange) using CSS custom properties; worksheet accent color is electric blue (#0066FF)
