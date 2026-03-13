@@ -582,8 +582,8 @@ export default function Landing() {
               <h4 className="font-display font-bold text-sm mb-4 text-foreground">Get in Touch</h4>
               <ul className="space-y-2.5">
                 <li>
-                  <a href="mailto:support@qikworksheets.com" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="footer-email">
-                    support@qikworksheets.com
+                  <a href="mailto:hi@qikworksheet.in" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="footer-email">
+                    hi@qikworksheet.in
                   </a>
                 </li>
               </ul>

@@ -56,7 +56,7 @@ export default function AboutUs() {
 
           <h2 className="text-xl font-display font-bold mt-8">Contact Us</h2>
           <p>
-            Have questions or feedback? We would love to hear from you. Reach out to us at <a href="mailto:support@qikworksheets.com" className="text-primary hover:underline">support@qikworksheets.com</a>.
+            Have questions or feedback? We would love to hear from you. Reach out to us at <a href="mailto:hi@qikworksheet.in" className="text-primary hover:underline">hi@qikworksheet.in</a>.
           </p>
         </div>
       </div>

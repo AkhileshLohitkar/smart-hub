@@ -54,7 +54,7 @@ export default function RefundPolicy() {
           <h2 className="text-xl font-display font-bold mt-8">3. How to Request a Refund</h2>
           <p>To request a refund, please follow these steps:</p>
           <ol className="list-decimal pl-5 space-y-2">
-            <li>Send an email to <a href="mailto:support@qikworksheets.com" className="text-primary hover:underline">support@qikworksheets.com</a> with the subject line "Refund Request".</li>
+            <li>Send an email to <a href="mailto:hi@qikworksheet.in" className="text-primary hover:underline">hi@qikworksheet.in</a> with the subject line "Refund Request".</li>
             <li>Include your registered email address and the reason for your refund request.</li>
             <li>Our team will review your request and respond within 3 business days.</li>
           </ol>
@@ -81,7 +81,7 @@ export default function RefundPolicy() {
 
           <h2 className="text-xl font-display font-bold mt-8">7. Contact Us</h2>
           <p>
-            For any questions about refunds, cancellations, or billing, please reach out to us at <a href="mailto:support@qikworksheets.com" className="text-primary hover:underline">support@qikworksheets.com</a>.
+            For any questions about refunds, cancellations, or billing, please reach out to us at <a href="mailto:hi@qikworksheet.in" className="text-primary hover:underline">hi@qikworksheet.in</a>.
           </p>
         </div>
       </div>

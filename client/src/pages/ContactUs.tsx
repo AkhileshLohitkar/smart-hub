@@ -33,8 +33,8 @@ export default function ContactUs() {
               <Mail className="w-6 h-6" />
             </div>
             <h3 className="font-display font-bold mb-2">Email Us</h3>
-            <a href="mailto:support@qikworksheets.com" className="text-sm text-primary hover:underline">
-              support@qikworksheets.com
+            <a href="mailto:hi@qikworksheet.in" className="text-sm text-primary hover:underline">
+              hi@qikworksheet.in
             </a>
           </Card>
 
