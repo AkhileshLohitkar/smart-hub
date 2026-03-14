@@ -10,8 +10,27 @@ import { syncUserToEmailList } from "./emailService";
 import type { Express } from "express";
 import type { User } from "@shared/schema";
 import connectPg from "connect-pg-simple";
+import { pool } from "./db";
 
 const scryptAsync = promisify(scrypt);
+
+async function ensureSessionTable(): Promise<void> {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS "session" (
+        "sid" varchar NOT NULL,
+        "sess" json NOT NULL,
+        "expire" timestamp(6) NOT NULL,
+        PRIMARY KEY ("sid")
+      );
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+    `);
+  } catch (err) {
+    console.error("[Auth] Failed to ensure session table:", err);
+  }
+}
 
 async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
@@ -31,7 +50,9 @@ declare global {
   }
 }
 
-export function setupAuth(app: Express) {
+export async function setupAuth(app: Express) {
+  await ensureSessionTable();
+
   const PgStore = connectPg(session);
 
   app.set("trust proxy", 1);
@@ -39,8 +60,8 @@ export function setupAuth(app: Express) {
   app.use(
     session({
       store: new PgStore({
-        conString: process.env.DATABASE_URL,
-        createTableIfMissing: true,
+        pool,
+        createTableIfMissing: false,
       }),
       secret: process.env.SESSION_SECRET!,
       resave: false,
