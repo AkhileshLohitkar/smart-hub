@@ -1,6 +1,21 @@
 import { db } from "./db";
 import { users, children, worksheets, type InsertUser, type User, type InsertChild, type Child, type InsertWorksheet, type WorksheetResponse } from "@shared/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, gte } from "drizzle-orm";
+
+export interface AdminUserRow {
+  id: number;
+  email: string;
+  name: string;
+  userCategory: string | null;
+  plan: string;
+  worksheetsGenerated: number;
+  createdAt: Date | null;
+}
+
+export interface DailyActivity {
+  date: string;
+  count: number;
+}
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -22,6 +37,8 @@ export interface IStorage {
   createWorksheet(worksheet: InsertWorksheet, content: any, userId?: number): Promise<WorksheetResponse>;
   rateWorksheet(id: number, rating: number): Promise<WorksheetResponse>;
   getUserWorksheets(userId: number): Promise<WorksheetResponse[]>;
+  getAllUsersAdmin(): Promise<AdminUserRow[]>;
+  getWorksheetActivityLast7Days(): Promise<DailyActivity[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -163,6 +180,48 @@ export class DatabaseStorage implements IStorage {
 
   async getUserWorksheets(userId: number): Promise<WorksheetResponse[]> {
     return db.select().from(worksheets).where(eq(worksheets.userId, userId)).orderBy(desc(worksheets.createdAt));
+  }
+
+  async getAllUsersAdmin(): Promise<AdminUserRow[]> {
+    const rows = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        userCategory: users.userCategory,
+        plan: users.plan,
+        worksheetsGenerated: users.worksheetsGenerated,
+        createdAt: users.createdAt,
+      })
+      .from(users)
+      .orderBy(desc(users.createdAt));
+    return rows;
+  }
+
+  async getWorksheetActivityLast7Days(): Promise<DailyActivity[]> {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const rows = await db
+      .select({
+        date: sql<string>`DATE(${worksheets.createdAt})`,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(worksheets)
+      .where(gte(worksheets.createdAt, sevenDaysAgo))
+      .groupBy(sql`DATE(${worksheets.createdAt})`)
+      .orderBy(sql`DATE(${worksheets.createdAt})`);
+
+    const dateMap = new Map(rows.map((r) => [r.date, r.count]));
+    const result: DailyActivity[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split("T")[0];
+      result.push({ date: key, count: dateMap.get(key) || 0 });
+    }
+    return result;
   }
 }
 

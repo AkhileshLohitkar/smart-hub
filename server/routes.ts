@@ -532,5 +532,30 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
     }
   });
 
+  app.get("/api/admin/stats", async (req, res) => {
+    try {
+      const adminKey = process.env.ADMIN_SECRET_KEY;
+      if (!adminKey) {
+        return res.status(503).json({ message: "Admin functionality not configured." });
+      }
+      const provided = req.headers["x-admin-key"] as string | undefined;
+      if (!provided || provided !== adminKey) {
+        return res.status(401).json({ message: "Invalid admin key." });
+      }
+      const [allUsers, activity] = await Promise.all([
+        storage.getAllUsersAdmin(),
+        storage.getWorksheetActivityLast7Days(),
+      ]);
+      res.json({
+        totalUsers: allUsers.length,
+        users: allUsers,
+        worksheetActivity: activity,
+      });
+    } catch (err) {
+      console.error("Admin stats error:", err);
+      res.status(500).json({ message: "Failed to fetch admin stats." });
+    }
+  });
+
   return httpServer;
 }

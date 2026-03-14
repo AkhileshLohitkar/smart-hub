@@ -4,6 +4,9 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { useEffect } from "react";
+import { initPostHog, trackEvent, identifyUser } from "@/lib/posthog";
+import { useUser } from "@/hooks/use-auth";
 import NotFound from "@/pages/not-found";
 
 import Landing from "@/pages/Landing";
@@ -20,6 +23,28 @@ import TermsAndConditions from "@/pages/TermsAndConditions";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import RefundPolicy from "@/pages/RefundPolicy";
 import ContactUs from "@/pages/ContactUs";
+import Admin from "@/pages/Admin";
+
+function PostHogInitializer() {
+  const { data: user } = useUser();
+
+  useEffect(() => {
+    initPostHog();
+    trackEvent("App_Open");
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      identifyUser(user.id, {
+        email: user.email,
+        name: user.name,
+        userCategory: (user as any).userCategory,
+      });
+    }
+  }, [user]);
+
+  return null;
+}
 
 function Router() {
   return (
@@ -38,6 +63,7 @@ function Router() {
       <Route path="/privacy" component={PrivacyPolicy} />
       <Route path="/refund-policy" component={RefundPolicy} />
       <Route path="/contact" component={ContactUs} />
+      <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -48,6 +74,7 @@ function App() {
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
+          <PostHogInitializer />
           <Router />
           <Toaster />
         </TooltipProvider>

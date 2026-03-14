@@ -19,6 +19,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useLogin, useRegister, useUser } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 
@@ -30,6 +37,7 @@ const loginSchema = z.object({
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
+  userCategory: z.string().min(1, "Please select your role"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -64,7 +72,7 @@ export default function AuthPage() {
 
   const registerForm = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { name: "", email: "", password: "", confirmPassword: "" },
+    defaultValues: { name: "", email: "", userCategory: "", password: "", confirmPassword: "" },
   });
 
   const onLogin = (data: z.infer<typeof loginSchema>) => {
@@ -72,7 +80,12 @@ export default function AuthPage() {
   };
 
   const onRegister = (data: z.infer<typeof registerSchema>) => {
-    registerMutation.mutate({ name: data.name, email: data.email, password: data.password });
+    registerMutation.mutate({
+      name: data.name,
+      email: data.email,
+      password: data.password,
+      userCategory: data.userCategory,
+    } as any);
   };
 
   return (
@@ -232,6 +245,28 @@ export default function AuthPage() {
                         <FormControl>
                           <Input placeholder="you@example.com" type="email" data-testid="input-register-email" {...field} />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={registerForm.control}
+                    name="userCategory"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>I am a</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-user-category">
+                              <SelectValue placeholder="Select your role" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="Parent">Parent</SelectItem>
+                            <SelectItem value="Teacher">Teacher</SelectItem>
+                            <SelectItem value="Professional">Professional</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}

@@ -6,6 +6,7 @@ import session from "express-session";
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
+import { syncUserToEmailList } from "./emailService";
 import type { Express } from "express";
 import type { User } from "@shared/schema";
 import connectPg from "connect-pg-simple";
@@ -200,7 +201,7 @@ export function setupAuth(app: Express) {
 
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, name, password } = req.body;
+      const { email, name, password, userCategory } = req.body;
       if (!email || !name || !password) {
         return res.status(400).json({ message: "All fields are required" });
       }
@@ -212,7 +213,15 @@ export function setupAuth(app: Express) {
         return res.status(400).json({ message: "Email already registered" });
       }
       const hashedPassword = await hashPassword(password);
-      const user = await storage.createUser({ email, name, password: hashedPassword });
+      const user = await storage.createUser({
+        email,
+        name,
+        password: hashedPassword,
+        userCategory: userCategory || null,
+      });
+      syncUserToEmailList(email, name, userCategory).catch((e) =>
+        console.error("[Auth] Email sync failed:", e)
+      );
       req.login(user, (err) => {
         if (err) return res.status(500).json({ message: "Login failed after registration" });
         const { password: _, ...safeUser } = user;
