@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { Brain, Printer, CheckCircle, Star, BookOpen, Users, Download, Sparkles, ArrowRight, Shield, Zap, Quote, Loader2 } from "lucide-react";
@@ -143,6 +143,7 @@ export default function Landing() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const modalOpenRef = useRef(false);
 
   const handleCheckout = useCallback(async (planKey: string) => {
     if (!user) {
@@ -150,12 +151,19 @@ export default function Landing() {
       return;
     }
 
+    if (modalOpenRef.current || checkoutLoading !== null) {
+      toast({ title: "Payment in progress", description: "Please complete or close the current payment window first.", variant: "destructive" });
+      return;
+    }
+
     setCheckoutLoading(planKey);
+    modalOpenRef.current = true;
     try {
       const loaded = await loadRazorpayScript();
       if (!loaded) {
         toast({ title: "Error", description: "Could not load payment gateway. Please try again.", variant: "destructive" });
         setCheckoutLoading(null);
+        modalOpenRef.current = false;
         return;
       }
 
@@ -165,6 +173,7 @@ export default function Landing() {
       if (!orderData.orderId) {
         toast({ title: "Error", description: orderData.message || "Could not create order.", variant: "destructive" });
         setCheckoutLoading(null);
+        modalOpenRef.current = false;
         return;
       }
 
@@ -188,12 +197,18 @@ export default function Landing() {
             const verifyData = await verifyRes.json();
             if (verifyData.success) {
               queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+              modalOpenRef.current = false;
+              setCheckoutLoading(null);
               setLocation(`/payment/success?plan=${orderData.planName}`);
             } else {
-              toast({ title: "Verification failed", description: "Payment could not be verified.", variant: "destructive" });
+              toast({ title: "Verification failed", description: "Payment could not be verified. Please use 'Recover Payment' if you were charged.", variant: "destructive" });
+              setCheckoutLoading(null);
+              modalOpenRef.current = false;
             }
           } catch {
-            toast({ title: "Error", description: "Payment verification failed.", variant: "destructive" });
+            toast({ title: "Error", description: "Payment verification failed. If you were charged, please use 'Recover Payment' from your dashboard.", variant: "destructive" });
+            setCheckoutLoading(null);
+            modalOpenRef.current = false;
           }
         },
         prefill: {
@@ -206,6 +221,7 @@ export default function Landing() {
         modal: {
           ondismiss: () => {
             setCheckoutLoading(null);
+            modalOpenRef.current = false;
           },
         },
       };
@@ -215,8 +231,9 @@ export default function Landing() {
     } catch {
       toast({ title: "Checkout failed", description: "Could not start checkout. Please try again.", variant: "destructive" });
       setCheckoutLoading(null);
+      modalOpenRef.current = false;
     }
-  }, [user, setLocation, toast]);
+  }, [user, setLocation, toast, checkoutLoading]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -400,6 +417,16 @@ export default function Landing() {
               </motion.div>
             ))}
           </div>
+
+          {user && (
+            <div className="text-center mt-8">
+              <Link href="/payment/recover">
+                <button className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors" data-testid="link-recover-payment">
+                  Paid but your plan wasn't upgraded? Recover your payment →
+                </button>
+              </Link>
+            </div>
+          )}
         </div>
       </section>
 

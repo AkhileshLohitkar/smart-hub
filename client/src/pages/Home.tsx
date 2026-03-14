@@ -97,11 +97,16 @@ export default function Home() {
                   Upgrade your plan for unlimited worksheets and more child profiles
                 </p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Link href="/#pricing">
                   <Button size="sm" className="bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-xs hover:opacity-90" data-testid="button-upgrade-banner">
                     View Plans
                   </Button>
+                </Link>
+                <Link href="/payment/recover">
+                  <button className="text-xs text-amber-700 dark:text-amber-300 underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-100 transition-colors" data-testid="link-recover-dashboard">
+                    Already paid?
+                  </button>
                 </Link>
                 <button onClick={() => setPlanBannerDismissed(true)} className="text-amber-400 hover:text-amber-600 p-1" data-testid="button-dismiss-plan-banner">
                   <X className="w-4 h-4" />

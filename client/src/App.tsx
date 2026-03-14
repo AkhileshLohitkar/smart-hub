@@ -18,6 +18,7 @@ import Children from "@/pages/Children";
 import TestPrep from "@/pages/TestPrep";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
+import PaymentRecover from "@/pages/PaymentRecover";
 import AboutUs from "@/pages/AboutUs";
 import TermsAndConditions from "@/pages/TermsAndConditions";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
@@ -58,6 +59,7 @@ function Router() {
       <Route path="/test-prep" component={TestPrep} />
       <Route path="/payment/success" component={PaymentSuccess} />
       <Route path="/payment/cancel" component={PaymentCancel} />
+      <Route path="/payment/recover" component={PaymentRecover} />
       <Route path="/about" component={AboutUs} />
       <Route path="/terms" component={TermsAndConditions} />
       <Route path="/privacy" component={PrivacyPolicy} />

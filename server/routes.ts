@@ -5,7 +5,7 @@ import { api } from "@shared/routes";
 import { z } from "zod";
 import OpenAI from "openai";
 import { PLAN_CONFIG } from "./planConfig";
-import { getRazorpay, getRazorpayKeyId, verifyRazorpaySignature } from "./razorpayClient";
+import { getRazorpay, getRazorpayKeyId, verifyRazorpaySignature, verifyWebhookSignature } from "./razorpayClient";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -489,7 +489,7 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
       }
 
       const plan = RAZORPAY_PLANS.find(p => p.planKey === planKey);
-      if (!plan || plan.amount !== order.amount) {
+      if (!plan || Number(plan.amount) !== Number(order.amount)) {
         return res.status(400).json({ message: "Order amount mismatch" });
       }
 
@@ -529,6 +529,129 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
       });
     } catch {
       res.json({ plan: "free", planExpiresAt: null });
+    }
+  });
+
+  app.post("/api/razorpay/webhook", async (req, res) => {
+    try {
+      const signature = req.headers["x-razorpay-signature"] as string | undefined;
+      const rawBody = (req as any).rawBody as string | undefined;
+
+      if (!signature || !rawBody) {
+        return res.status(400).json({ message: "Missing signature or body" });
+      }
+
+      const isValid = verifyWebhookSignature(rawBody, signature);
+      if (!isValid) {
+        console.error("[Webhook] Invalid Razorpay webhook signature");
+        return res.status(400).json({ message: "Invalid signature" });
+      }
+
+      const event = req.body;
+      const eventName: string = event?.event;
+
+      if (eventName === "payment.captured" || eventName === "order.paid") {
+        const orderId: string =
+          event?.payload?.payment?.entity?.order_id ||
+          event?.payload?.order?.entity?.id;
+
+        if (!orderId) {
+          return res.status(200).json({ status: "ignored - no order id" });
+        }
+
+        const razorpay = getRazorpay();
+        const order = await razorpay.orders.fetch(orderId);
+        const planKey = (order.notes as any)?.planKey;
+        const userId = parseInt((order.notes as any)?.userId || "0", 10);
+
+        if (!planKey || !userId) {
+          console.error(`[Webhook] Missing planKey or userId in order notes for ${orderId}`);
+          return res.status(200).json({ status: "ignored - missing notes" });
+        }
+
+        const plan = RAZORPAY_PLANS.find((p) => p.planKey === planKey);
+        if (!plan) {
+          return res.status(200).json({ status: "ignored - unknown plan" });
+        }
+
+        const config = PLAN_CONFIG[planKey] || { plan: "starter", maxChildren: 1 };
+        const isAnnual = plan.period === "yearly";
+        const periodEnd = new Date();
+        if (isAnnual) {
+          periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+        } else {
+          periodEnd.setMonth(periodEnd.getMonth() + 1);
+        }
+
+        const currentUser = await storage.getUser(userId);
+        if (currentUser && currentUser.plan !== "free" && currentUser.planExpiresAt && new Date(currentUser.planExpiresAt) > new Date()) {
+          console.log(`[Webhook] User ${userId} already has active plan ${currentUser.plan}, skipping duplicate`);
+          return res.status(200).json({ status: "already_upgraded" });
+        }
+
+        const paymentId: string = event?.payload?.payment?.entity?.id || orderId;
+        await storage.updateRazorpayCustomerId(userId, paymentId);
+        await storage.updateUserPlan(userId, config.plan, config.maxChildren, periodEnd);
+        console.log(`[Webhook] Upgraded user ${userId} to plan ${config.plan} via webhook for order ${orderId}`);
+      }
+
+      return res.status(200).json({ status: "ok" });
+    } catch (err) {
+      console.error("[Webhook] Error handling Razorpay webhook:", err);
+      return res.status(500).json({ message: "Webhook processing failed" });
+    }
+  });
+
+  app.post("/api/razorpay/recover-payment", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Please log in to recover your payment" });
+      }
+
+      const { orderId } = req.body;
+      if (!orderId || typeof orderId !== "string") {
+        return res.status(400).json({ message: "Order ID is required" });
+      }
+
+      const razorpay = getRazorpay();
+      let order: any;
+      try {
+        order = await razorpay.orders.fetch(orderId.trim());
+      } catch {
+        return res.status(404).json({ message: "Order not found. Please check your Order ID." });
+      }
+
+      const orderUserId = parseInt((order.notes as any)?.userId || "0", 10);
+      if (orderUserId !== req.user.id) {
+        return res.status(403).json({ message: "This order does not belong to your account." });
+      }
+
+      if (order.status !== "paid") {
+        return res.status(400).json({ message: `Order is not paid yet. Current status: ${order.status}` });
+      }
+
+      const planKey = (order.notes as any)?.planKey;
+      const plan = RAZORPAY_PLANS.find((p) => p.planKey === planKey);
+      if (!plan) {
+        return res.status(400).json({ message: "Could not determine plan from this order." });
+      }
+
+      const config = PLAN_CONFIG[planKey] || { plan: "starter", maxChildren: 1 };
+      const isAnnual = plan.period === "yearly";
+      const periodEnd = new Date();
+      if (isAnnual) {
+        periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+      } else {
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+      }
+
+      await storage.updateUserPlan(req.user.id, config.plan, config.maxChildren, periodEnd);
+      const updatedUser = await storage.getUser(req.user.id);
+      console.log(`[Recover] User ${req.user.id} recovered plan ${config.plan} for order ${orderId}`);
+      return res.json({ success: true, plan: config.plan, user: updatedUser });
+    } catch (err) {
+      console.error("[Recover] Payment recovery error:", err);
+      return res.status(500).json({ message: "Payment recovery failed. Please contact support." });
     }
   });
 
