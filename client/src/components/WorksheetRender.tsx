@@ -123,7 +123,7 @@ function MatchSection({ q, qIndex, isColor }: { q: ContentQuestion; qIndex: numb
       <div className="flex gap-3">
         <span className="font-bold shrink-0">{qIndex + 1}.</span>
         <div className="w-full">
-          <p className="text-sm leading-snug mb-1.5" data-testid={`text-match-question-${qIndex}`}>{q.question}</p>
+          <p className="text-sm leading-snug mb-1.5" data-testid={`text-match-question-${qIndex}`}>{cleanText(q.question)}</p>
           <div className="flex flex-wrap gap-3">
             <div className={`flex-1 min-w-[120px] border rounded-md p-2 ${isColor ? `${ACCENT.border} ${ACCENT.bg}` : 'border-gray-400'}`} data-testid={`column-a-${qIndex}`}>
               <h4 className="text-[10px] font-bold uppercase tracking-wide mb-1 text-gray-600">Column A</h4>
@@ -131,7 +131,7 @@ function MatchSection({ q, qIndex, isColor }: { q: ContentQuestion; qIndex: numb
                 {leftItems.map((item, i) => (
                   <div key={i} className="flex items-center gap-1.5 text-xs">
                     <span className="font-bold shrink-0 w-4">{i + 1}.</span>
-                    <span data-testid={`text-col-a-${qIndex}-${i}`}>{item}</span>
+                    <span data-testid={`text-col-a-${qIndex}-${i}`}>{cleanText(item)}</span>
                   </div>
                 ))}
               </div>
@@ -142,7 +142,7 @@ function MatchSection({ q, qIndex, isColor }: { q: ContentQuestion; qIndex: numb
                 {shuffledRight.map((item, i) => (
                   <div key={i} className="flex items-center gap-1.5 text-xs">
                     <span className="font-bold shrink-0 w-4">{String.fromCharCode(97 + i)}.</span>
-                    <span data-testid={`text-col-b-${qIndex}-${i}`}>{item}</span>
+                    <span data-testid={`text-col-b-${qIndex}-${i}`}>{cleanText(item)}</span>
                   </div>
                 ))}
               </div>
@@ -155,6 +155,14 @@ function MatchSection({ q, qIndex, isColor }: { q: ContentQuestion; qIndex: numb
 }
 
 const YOUNG_CLASSES = ["Nursery", "KG 1", "KG 2", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5"];
+
+function cleanText(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/^\s*\(?\d+[.)]\)?\s+/, "")
+    .replace(/^\s*\(?[a-zA-Z][.)]\)?\s+/, "")
+    .trim();
+}
 
 export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRenderProps) {
   const content = worksheet.content as unknown as WorksheetContent;
@@ -302,7 +310,7 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
                       <div className="flex gap-3">
                         <span className="font-bold shrink-0">{qIndex + 1}.</span>
                         <div className="w-full">
-                          <p className="text-sm leading-snug mb-1.5">{q.question}</p>
+                          <p className="text-sm leading-snug mb-1.5">{cleanText(q.question)}</p>
                           
                           {section.type === "mcq" && q.options && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 mb-2 font-sans ml-2">
@@ -313,7 +321,7 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
                                       {String.fromCharCode(97 + optIndex)}
                                     </span>
                                   </div>
-                                  <span className="text-xs">{opt}</span>
+                                  <span className="text-xs">{cleanText(opt)}</span>
                                 </label>
                               ))}
                             </div>

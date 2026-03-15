@@ -58,6 +58,7 @@ export function WorksheetForm() {
   const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<string[]>([]);
   const [selectedBook, setSelectedBook] = useState<string>("");
   const [selectedStateBoard, setSelectedStateBoard] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -137,6 +138,8 @@ export function WorksheetForm() {
   };
 
   const onSubmit = async (data: FormValues) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const activeBook = chapterBooks.length === 1 ? chapterBooks[0]?.bookName : selectedBook;
       const boardToSend = isStateBoard && selectedStateBoard ? `State Board - ${selectedStateBoard}` : data.board;
@@ -167,10 +170,12 @@ export function WorksheetForm() {
         description: errorMsg,
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const isGenerating = generateMutation.isPending;
+  const isGenerating = isSubmitting || generateMutation.isPending;
 
   return (
     <div className="bg-card rounded-2xl shadow-xl shadow-primary/5 border border-border/50 overflow-hidden">
@@ -649,20 +654,30 @@ export function WorksheetForm() {
             <Button 
               type="submit" 
               disabled={isGenerating || isFormLocked}
-              className="w-full h-14 text-lg rounded-xl shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 hover:-translate-y-0.5"
+              data-testid="button-generate-worksheet"
+              className={`w-full h-14 text-lg rounded-xl shadow-lg transition-all duration-300 relative overflow-hidden
+                ${isGenerating
+                  ? 'bg-primary/80 cursor-not-allowed shadow-primary/10'
+                  : 'shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5'
+                }`}
             >
               {isGenerating ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-3 animate-spin" />
-                  Generating Worksheet...
-                </>
+                <span className="flex items-center justify-center gap-3">
+                  <Loader2 className="w-5 h-5 animate-spin shrink-0" />
+                  <span className="font-semibold">Generating — please wait…</span>
+                </span>
               ) : (
-                <>
-                  <Sparkles className="w-5 h-5 mr-3" />
-                  Generate Smart Worksheet
-                </>
+                <span className="flex items-center justify-center gap-3">
+                  <Sparkles className="w-5 h-5 shrink-0" />
+                  <span className="font-semibold">Generate Smart Worksheet</span>
+                </span>
               )}
             </Button>
+            {isGenerating && (
+              <p className="text-center text-sm text-muted-foreground mt-2 animate-pulse" data-testid="text-generating-notice">
+                AI is crafting your worksheet — this takes 10–20 seconds
+              </p>
+            )}
           </div>
         </form>
       </Form>
