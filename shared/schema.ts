@@ -48,6 +48,29 @@ export const worksheets = pgTable("worksheets", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const contentUploads = pgTable("content_uploads", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  board: text("board").notNull(),
+  className: text("class_name").notNull(),
+  subject: text("subject").notNull(),
+  chapter: text("chapter").notNull().default(""),
+  topic: text("topic").notNull().default(""),
+  extractedText: text("extracted_text").notNull(),
+  sourceDescription: text("source_description").default(""),
+  pageCount: integer("page_count").default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertContentUploadSchema = createInsertSchema(contentUploads).omit({
+  id: true,
+  createdAt: true,
+  userId: true,
+});
+
+export type ContentUpload = typeof contentUploads.$inferSelect;
+export type InsertContentUpload = z.infer<typeof insertContentUploadSchema>;
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,

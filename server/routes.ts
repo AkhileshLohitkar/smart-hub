@@ -532,6 +532,121 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
     }
   });
 
+  app.post("/api/content/upload", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const { board, className, subject, chapter, topic, sourceDescription, images } = req.body;
+      if (!board || !className || !subject || !Array.isArray(images) || images.length === 0) {
+        return res.status(400).json({ message: "board, className, subject, and at least one image are required" });
+      }
+      if (images.length > 10) {
+        return res.status(400).json({ message: "Maximum 10 images per upload" });
+      }
+
+      const extractedParts: string[] = [];
+      for (let i = 0; i < images.length; i++) {
+        const { base64, mimeType } = images[i];
+        if (!base64) continue;
+        const dataUrl = base64.startsWith("data:") ? base64 : `data:${mimeType || "image/jpeg"};base64,${base64}`;
+        try {
+          const visionRes = await openai.chat.completions.create({
+            model: "gpt-4o",
+            max_tokens: 4000,
+            messages: [{
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: `Extract all text content from this textbook page image. This is page ${i + 1} of ${images.length} from ${subject} (${board}, ${className}). Preserve headings, definitions, examples, and structure. Clean up any OCR artifacts. Return the extracted text only, no commentary.`,
+                },
+                {
+                  type: "image_url",
+                  image_url: { url: dataUrl, detail: "high" },
+                },
+              ],
+            }],
+          });
+          const text = visionRes.choices[0]?.message?.content?.trim();
+          if (text) extractedParts.push(`[Page ${i + 1}]\n${text}`);
+        } catch (ocrErr) {
+          console.error(`[Content] OCR failed for image ${i + 1}:`, ocrErr);
+        }
+      }
+
+      if (extractedParts.length === 0) {
+        return res.status(422).json({ message: "Could not extract text from the uploaded images. Please try with clearer images." });
+      }
+
+      const extractedText = extractedParts.join("\n\n---\n\n");
+      const record = await storage.createContentUpload(req.user.id, {
+        board,
+        className,
+        subject,
+        chapter: chapter || "",
+        topic: topic || "",
+        extractedText,
+        sourceDescription: sourceDescription || "",
+        pageCount: images.length,
+      });
+
+      return res.status(201).json(record);
+    } catch (err) {
+      console.error("[Content] Upload error:", err);
+      return res.status(500).json({ message: "Content upload failed. Please try again." });
+    }
+  });
+
+  app.get("/api/content", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      const uploads = await storage.getUserContentUploads(req.user.id);
+      return res.json(uploads);
+    } catch (err) {
+      return res.status(500).json({ message: "Failed to fetch content" });
+    }
+  });
+
+  app.delete("/api/content/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+      const deleted = await storage.deleteContentUpload(id, req.user.id);
+      if (!deleted) return res.status(404).json({ message: "Content not found" });
+      return res.json({ success: true });
+    } catch (err) {
+      return res.status(500).json({ message: "Delete failed" });
+    }
+  });
+
+  app.get("/api/content/context", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      const { className, subject, topic } = req.query;
+      if (!className || !subject) return res.status(400).json({ message: "className and subject are required" });
+      const results = await storage.searchContentUploads(
+        req.user.id,
+        String(className),
+        String(subject),
+        topic ? String(topic) : undefined
+      );
+      const hasContent = results.length > 0;
+      const combinedText = results.map(r => r.extractedText).join("\n\n---\n\n");
+      return res.json({ hasContent, content: combinedText, count: results.length });
+    } catch (err) {
+      return res.status(500).json({ message: "Context search failed" });
+    }
+  });
+
   app.post("/api/razorpay/webhook", async (req, res) => {
     try {
       const signature = req.headers["x-razorpay-signature"] as string | undefined;

@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { users, children, worksheets, type InsertUser, type User, type InsertChild, type Child, type InsertWorksheet, type WorksheetResponse } from "@shared/schema";
-import { eq, and, desc, sql, gte } from "drizzle-orm";
+import { users, children, worksheets, contentUploads, type InsertUser, type User, type InsertChild, type Child, type InsertWorksheet, type WorksheetResponse, type ContentUpload } from "@shared/schema";
+import { eq, and, desc, sql, gte, ilike, or } from "drizzle-orm";
 
 export interface AdminUserRow {
   id: number;
@@ -39,6 +39,11 @@ export interface IStorage {
   getUserWorksheets(userId: number): Promise<WorksheetResponse[]>;
   getAllUsersAdmin(): Promise<AdminUserRow[]>;
   getWorksheetActivityLast7Days(): Promise<DailyActivity[]>;
+  createContentUpload(userId: number, data: { board: string; className: string; subject: string; chapter: string; topic: string; extractedText: string; sourceDescription: string; pageCount: number }): Promise<ContentUpload>;
+  getUserContentUploads(userId: number): Promise<ContentUpload[]>;
+  getContentUpload(id: number, userId: number): Promise<ContentUpload | undefined>;
+  deleteContentUpload(id: number, userId: number): Promise<boolean>;
+  searchContentUploads(userId: number, className: string, subject: string, topic?: string): Promise<ContentUpload[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -222,6 +227,59 @@ export class DatabaseStorage implements IStorage {
       result.push({ date: key, count: dateMap.get(key) || 0 });
     }
     return result;
+  }
+
+  async createContentUpload(userId: number, data: { board: string; className: string; subject: string; chapter: string; topic: string; extractedText: string; sourceDescription: string; pageCount: number }): Promise<ContentUpload> {
+    const [created] = await db.insert(contentUploads).values({
+      userId,
+      board: data.board,
+      className: data.className,
+      subject: data.subject,
+      chapter: data.chapter,
+      topic: data.topic,
+      extractedText: data.extractedText,
+      sourceDescription: data.sourceDescription,
+      pageCount: data.pageCount,
+    }).returning();
+    return created;
+  }
+
+  async getUserContentUploads(userId: number): Promise<ContentUpload[]> {
+    return db.select().from(contentUploads)
+      .where(eq(contentUploads.userId, userId))
+      .orderBy(desc(contentUploads.createdAt));
+  }
+
+  async getContentUpload(id: number, userId: number): Promise<ContentUpload | undefined> {
+    const [row] = await db.select().from(contentUploads)
+      .where(and(eq(contentUploads.id, id), eq(contentUploads.userId, userId)));
+    return row;
+  }
+
+  async deleteContentUpload(id: number, userId: number): Promise<boolean> {
+    const result = await db.delete(contentUploads)
+      .where(and(eq(contentUploads.id, id), eq(contentUploads.userId, userId)));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async searchContentUploads(userId: number, className: string, subject: string, topic?: string): Promise<ContentUpload[]> {
+    const conditions = [
+      eq(contentUploads.userId, userId),
+      ilike(contentUploads.className, `%${className}%`),
+      ilike(contentUploads.subject, `%${subject}%`),
+    ];
+    if (topic) {
+      conditions.push(
+        or(
+          ilike(contentUploads.topic, `%${topic}%`),
+          ilike(contentUploads.chapter, `%${topic}%`)
+        ) as any
+      );
+    }
+    return db.select().from(contentUploads)
+      .where(and(...conditions))
+      .orderBy(desc(contentUploads.createdAt))
+      .limit(3);
   }
 }
 

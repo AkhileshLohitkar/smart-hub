@@ -1,0 +1,44 @@
+Subject: Implement OCR-Driven Content Ingestion and Database Storage for [qikworksheet]
+
+Objective: Create a new "Content Upload" page that allows users to scan or upload images of textbook pages. The system should extract the text and store it in a structured database so it can be used later to generate worksheets on the Dashboard and Test-Prep pages.
+
+Requirements:
+
+UI/UX - Upload Page:
+
+Create a clean, mobile-responsive upload interface.
+
+Include a multi-step form or dropdowns for metadata: Board, Class (Grade), Subject, Chapter Name, and Topic.
+
+Add a file upload/camera input that supports multiple images per topic.
+
+OCR Processing:
+
+Integrate an OCR library (e.g., Tesseract.js or a cloud-based API like Google Vision) to extract text from the uploaded images.
+
+Ensure the extracted text is cleaned of unnecessary characters before storage.
+
+Database Architecture (Supabase/PostgreSQL/Firebase):
+
+Create a schema where each entry is tied to the user_id (data must be private to that user).
+
+Store the extracted text alongside the metadata (Board, Class, Subject, Chapter, Topic).
+
+Organize the data so it can be easily queried by "Grade" or "Subject" for future use.
+
+Worksheet Generation Logic:
+
+On the Dashboard and Test-Prep pages, update the worksheet generation logic to check the user's custom database.
+
+When a user selects a specific Class/Subject/Topic, the app should pull the stored text from the scan and feed it into the LLM/Prompt to generate specific, context-aware questions.
+
+Data Persistence:
+
+The data should be "for that user only" and persistent across sessions.
+
+Tech Stack Guidance: Please use [insert your current tech stack, e.g., React, Next.js, or Python/Flask] and ensure the database calls are secure and efficient.
+
+A few tips for your development:
+Storage: Since you're storing images and text, make sure your database handles the text strings, but store the actual images in a bucket (like Supabase Storage or AWS S3) to keep the database light.
+
+Privacy: Since this is "for that user only," ensure your RLS (Row Level Security) is tight so one student doesn't accidentally see another's uploaded notes.
