@@ -32,7 +32,8 @@ export async function registerRoutes(
       const rawBody = req.body;
       const questionTypes: string[] = rawBody.questionTypes || [];
       const ncertBook: string | undefined = rawBody.ncertBook;
-      const { questionTypes: _qt, ncertBook: _nb, ...worksheetBody } = rawBody;
+      const selectedNoteIds: number[] = Array.isArray(rawBody.selectedNoteIds) ? rawBody.selectedNoteIds.map(Number).filter(Boolean) : [];
+      const { questionTypes: _qt, ncertBook: _nb, selectedNoteIds: _sni, ...worksheetBody } = rawBody;
       const input = api.worksheets.generate.input.parse(worksheetBody);
       const userId = req.user.id;
 
@@ -92,6 +93,18 @@ You MUST follow these rules strictly:
 
       const textbookInstruction = stateBoardInstruction || ncertInstruction;
 
+      let myNotesContext = "";
+      if (selectedNoteIds.length > 0) {
+        const noteRecords = await storage.getContentUploadsByIds(userId, selectedNoteIds);
+        if (noteRecords.length > 0) {
+          const noteTexts = noteRecords.map((n, i) => {
+            const label = [n.subject, n.chapter, n.topic].filter(Boolean).join(" — ");
+            return `[Note ${i + 1}: ${label}]\n${n.extractedText}`;
+          }).join("\n\n---\n\n");
+          myNotesContext = `\n\nUSER'S TEXTBOOK NOTES (use these as the PRIMARY source for questions):\n${noteTexts}\n\nIMPORTANT: The questions MUST be based on the above textbook notes provided by the user. Use the exact content, examples, definitions, and terminology from these notes. Do not invent questions that aren't covered by this material.`;
+        }
+      }
+
       const prompt = `Generate a printable educational worksheet with the following requirements:
 Class/Standard: ${input.className}
 Education Board: ${input.board}
@@ -99,7 +112,7 @@ Subject: ${input.subject}${textbookLabel}
 Chapter: ${input.chapter || "Not specified"}
 Topic: ${input.topic}
 Difficulty: ${input.difficulty}
-Approximate Number of questions: ${Math.min(input.length, 30)}${requestedTypes}${textbookInstruction}
+Approximate Number of questions: ${Math.min(input.length, 30)}${requestedTypes}${textbookInstruction}${myNotesContext}
 
 The output must be strictly in JSON format matching this structure:
 {

@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { users, children, worksheets, contentUploads, type InsertUser, type User, type InsertChild, type Child, type InsertWorksheet, type WorksheetResponse, type ContentUpload } from "@shared/schema";
-import { eq, and, desc, sql, gte, ilike, or } from "drizzle-orm";
+import { eq, and, desc, sql, gte, ilike, or, inArray } from "drizzle-orm";
 
 export interface AdminUserRow {
   id: number;
@@ -44,6 +44,7 @@ export interface IStorage {
   getContentUpload(id: number, userId: number): Promise<ContentUpload | undefined>;
   deleteContentUpload(id: number, userId: number): Promise<boolean>;
   searchContentUploads(userId: number, className: string, subject: string, topic?: string): Promise<ContentUpload[]>;
+  getContentUploadsByIds(userId: number, ids: number[]): Promise<ContentUpload[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -260,6 +261,15 @@ export class DatabaseStorage implements IStorage {
     const result = await db.delete(contentUploads)
       .where(and(eq(contentUploads.id, id), eq(contentUploads.userId, userId)));
     return (result.rowCount ?? 0) > 0;
+  }
+
+  async getContentUploadsByIds(userId: number, ids: number[]): Promise<ContentUpload[]> {
+    if (ids.length === 0) return [];
+    return db.select().from(contentUploads)
+      .where(and(
+        eq(contentUploads.userId, userId),
+        inArray(contentUploads.id, ids)
+      ));
   }
 
   async searchContentUploads(userId: number, className: string, subject: string, topic?: string): Promise<ContentUpload[]> {
