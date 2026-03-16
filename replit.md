@@ -46,6 +46,8 @@ Preferred communication style: Simple, everyday language.
 - **Star Rating**: Rating popup dialog appears on first worksheet view; custom StarRating component
 - **Answer Key**: Compact answer sheet rendered below worksheet with page break for printing
 - **Graphics**: AI-generated worksheets include descriptions for minimalist, colorful graphics; emoji decorations for Nursery/KG/Grade 1-5
+- **Application Based Questions**: New question type added to WorksheetForm; AI generates real-world scenario/case-study questions mapped to `long_answer` section type
+- **History Folder View**: When children exist, History page organizes worksheets/test papers into child folders (matched by grade+board) with subject sub-groups inside each folder; collapses/expands; unmatched items go to "Other / Unassigned" folder; no children → flat subject grouping
 - **Watermark**: Logo watermark on all worksheets; hidden for "no_watermark" plan users
 - **Child Selector**: WorksheetForm and TestPrep auto-fill grade/board from selected child profile; when children exist, form is locked until a child is selected
 - **NCERT Books**: When board is CBSE and a subject is entered, NCERT recommended textbook names are displayed (via `client/src/lib/ncertBooks.ts`)

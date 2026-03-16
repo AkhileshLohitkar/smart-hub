@@ -42,6 +42,7 @@ const QUESTION_TYPES = [
   { id: "short_answer", label: "Short Answers" },
   { id: "long_answer", label: "Long Answers" },
   { id: "match", label: "Match the Following" },
+  { id: "application_based", label: "Application Based" },
 ] as const;
 
 const formSchema = insertWorksheetSchema.extend({

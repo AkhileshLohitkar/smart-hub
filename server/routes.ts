@@ -49,6 +49,7 @@ export async function registerRoutes(
         fill_blanks: "fill_blanks (Fill in the Blanks)",
         true_false: "true_false (True or False statements - use mcq type with options ['True', 'False'])",
         one_word: "one_word (One Word Answer questions - use short_answer type with answerSpaceLines: 1)",
+        application_based: "application_based (Application-Based Questions - real-world scenarios, case studies, and problem-solving situations where students apply their knowledge to practical, everyday contexts)",
         short_answer: "short_answer (Short Answer Questions)",
         long_answer: "long_answer (Long Answer Questions)",
         match: "match (Match the Following with matchPairs)",
@@ -160,7 +161,8 @@ IMPORTANT RULES:
 6. For "mcq" type: set answerSpaceLines to 0.
 7. For "true_false" type: use "mcq" as the section type with options ["True", "False"] only.
 8. For "one_word" type: use "short_answer" as the section type with title indicating "One Word Answer" and answerSpaceLines: 1.
-9. For "identify_sketch" type: use "short_answer" as the section type with title "Identify from Sketch". Each question must describe a simple sketch or diagram in words (e.g., "A sketch shows a plant with arrows pointing to different parts labeled A, B, C, D"), then ask the student to identify or label the parts. Set answerSpaceLines to 2.
+9. For "application_based" type: use "long_answer" as the section type with title "Application Based Questions". Each question must present a real-world scenario, everyday situation, or mini case-study related to the topic, then ask the student to apply their knowledge to analyze, solve, or explain it. Questions should start with phrases like "Rohit notices that...", "A farmer observes...", "In a science experiment...", "You are given a situation where...". Set answerSpaceLines to 4.
+10. For "identify_sketch" type: use "short_answer" as the section type with title "Identify from Sketch". Each question must describe a simple sketch or diagram in words (e.g., "A sketch shows a plant with arrows pointing to different parts labeled A, B, C, D"), then ask the student to identify or label the parts. Set answerSpaceLines to 2.
 10. Generate a COMPLETE answerKey for ALL questions in ALL sections. The answer field should contain the correct answer text.
 11. Make the worksheet compact and well-organized to fit maximum content on A4 paper.
 12. Ensure questions are strictly aligned with the specified board syllabus, NCERT textbook (if specified), and appropriate for the class level. When an NCERT textbook is specified, ALL questions must come from that specific textbook's chapter content — use the same terminology, definitions, diagrams, and examples as in the textbook.
