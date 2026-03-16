@@ -599,6 +599,32 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
     }
   });
 
+  app.post("/api/content/save-text", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+      const { board, className, subject, chapter, topic, text, sourceDescription } = req.body;
+      if (!board || !className || !subject || !text || text.trim().length < 10) {
+        return res.status(400).json({ message: "Board, class, subject and text content are required (min 10 characters)." });
+      }
+      const record = await storage.createContentUpload(req.user.id, {
+        board,
+        className,
+        subject,
+        chapter: chapter || "",
+        topic: topic || "",
+        extractedText: text.trim(),
+        sourceDescription: sourceDescription || "Typed notes",
+        pageCount: 0,
+      });
+      return res.status(201).json(record);
+    } catch (err) {
+      console.error("[Content] Save-text error:", err);
+      return res.status(500).json({ message: "Failed to save notes. Please try again." });
+    }
+  });
+
   app.get("/api/content", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user) {
