@@ -84,6 +84,7 @@ export default function ContentUpload() {
   const [sourceDescription, setSourceDescription] = useState("");
   const [images, setImages] = useState<PreviewImage[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
 
   useEffect(() => {
     if (!userLoading && !user) setLocation("/auth");
@@ -104,30 +105,91 @@ export default function ContentUpload() {
     },
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (images.length + files.length > 10) {
-      toast({ title: "Too many images", description: "Maximum 10 images per upload.", variant: "destructive" });
-      return;
-    }
-    files.forEach((file) => {
+  const compressImage = (file: File): Promise<PreviewImage> => {
+    return new Promise((resolve, reject) => {
       if (!file.type.startsWith("image/")) {
-        toast({ title: "Invalid file", description: "Please upload image files only.", variant: "destructive" });
-        return;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        toast({ title: "File too large", description: `${file.name} exceeds 10MB.`, variant: "destructive" });
+        reject(new Error("Not an image"));
         return;
       }
       const reader = new FileReader();
       reader.onload = (ev) => {
-        const dataUrl = ev.target?.result as string;
-        const base64 = dataUrl.split(",")[1];
-        setImages((prev) => [...prev, { base64, mimeType: file.type, name: file.name, dataUrl, size: file.size }]);
+        const originalDataUrl = ev.target?.result as string;
+        const img = new Image();
+        img.onload = () => {
+          const MAX_SIDE = 2048;
+          const QUALITY_START = 0.82;
+          const TARGET_BYTES = 3.5 * 1024 * 1024;
+
+          let w = img.width;
+          let h = img.height;
+
+          if (w > MAX_SIDE || h > MAX_SIDE) {
+            const ratio = Math.min(MAX_SIDE / w, MAX_SIDE / h);
+            w = Math.round(w * ratio);
+            h = Math.round(h * ratio);
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) { reject(new Error("Canvas error")); return; }
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+
+          let quality = QUALITY_START;
+          let dataUrl = canvas.toDataURL("image/jpeg", quality);
+
+          while (dataUrl.length * 0.75 > TARGET_BYTES && quality > 0.35) {
+            quality -= 0.1;
+            dataUrl = canvas.toDataURL("image/jpeg", quality);
+          }
+
+          const base64 = dataUrl.split(",")[1];
+          const approxBytes = base64.length * 0.75;
+          resolve({
+            base64,
+            mimeType: "image/jpeg",
+            name: file.name,
+            dataUrl,
+            size: Math.round(approxBytes),
+          });
+        };
+        img.onerror = () => reject(new Error("Could not load image"));
+        img.src = originalDataUrl;
       };
+      reader.onerror = () => reject(new Error("Could not read file"));
       reader.readAsDataURL(file);
     });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (images.length + files.length > 10) {
+      toast({ title: "Too many images", description: "Maximum 10 images per upload.", variant: "destructive" });
+      e.target.value = "";
+      return;
+    }
+    const validFiles = files.filter((f) => {
+      if (!f.type.startsWith("image/")) {
+        toast({ title: "Invalid file", description: `${f.name} is not an image.`, variant: "destructive" });
+        return false;
+      }
+      return true;
+    });
     e.target.value = "";
+    if (validFiles.length === 0) return;
+    setIsCompressing(true);
+    for (const file of validFiles) {
+      try {
+        const compressed = await compressImage(file);
+        setImages((prev) => [...prev, compressed]);
+      } catch {
+        toast({ title: "Could not load image", description: `${file.name} could not be processed.`, variant: "destructive" });
+      }
+    }
+    setIsCompressing(false);
   };
 
   const removeImage = (idx: number) => {
@@ -302,12 +364,23 @@ export default function ContentUpload() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-full border-2 border-dashed border-primary/30 hover:border-primary/60 rounded-xl p-6 flex flex-col items-center gap-2 transition-colors cursor-pointer bg-primary/5 hover:bg-primary/10"
+              disabled={isCompressing}
+              className="w-full border-2 border-dashed border-primary/30 hover:border-primary/60 rounded-xl p-6 flex flex-col items-center gap-2 transition-colors cursor-pointer bg-primary/5 hover:bg-primary/10 disabled:opacity-60 disabled:cursor-not-allowed"
               data-testid="button-add-images"
             >
-              <ImagePlus className="w-8 h-8 text-primary/60" />
-              <span className="text-sm font-semibold text-primary/80">Tap to add photos</span>
-              <span className="text-xs text-muted-foreground">JPG, PNG, HEIC • Max 10MB each • Up to 10 pages</span>
+              {isCompressing ? (
+                <>
+                  <Loader2 className="w-8 h-8 text-primary/60 animate-spin" />
+                  <span className="text-sm font-semibold text-primary/80">Optimising image...</span>
+                  <span className="text-xs text-muted-foreground">Resizing to ideal quality for AI reading</span>
+                </>
+              ) : (
+                <>
+                  <ImagePlus className="w-8 h-8 text-primary/60" />
+                  <span className="text-sm font-semibold text-primary/80">Tap to add photos</span>
+                  <span className="text-xs text-muted-foreground">JPG, PNG, HEIC • Any size — auto-compressed • Up to 10 pages</span>
+                </>
+              )}
             </button>
 
             {images.length > 0 && (
@@ -322,8 +395,9 @@ export default function ContentUpload() {
                     >
                       <X className="w-3 h-3" />
                     </button>
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] px-1 py-0.5 truncate">
-                      Page {idx + 1}
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] px-1 py-0.5 flex justify-between items-center">
+                      <span>Page {idx + 1}</span>
+                      <span className="opacity-80">{img.size < 1024 * 1024 ? `${Math.round(img.size / 1024)}KB` : `${(img.size / (1024 * 1024)).toFixed(1)}MB`}</span>
                     </div>
                   </div>
                 ))}
@@ -331,7 +405,10 @@ export default function ContentUpload() {
             )}
 
             {images.length > 0 && (
-              <p className="text-xs text-muted-foreground text-center">{images.length} page{images.length > 1 ? "s" : ""} selected</p>
+              <p className="text-xs text-muted-foreground text-center">
+                {images.length} page{images.length > 1 ? "s" : ""} ready
+                {" · "}total {((images.reduce((s, i) => s + i.size, 0)) / (1024 * 1024)).toFixed(1)} MB after compression
+              </p>
             )}
 
             <Button
