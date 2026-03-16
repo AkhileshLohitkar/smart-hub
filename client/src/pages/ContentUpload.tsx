@@ -174,8 +174,8 @@ export default function ContentUpload() {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (images.length + files.length > 10) {
-      toast({ title: "Too many images", description: "Maximum 10 images per upload.", variant: "destructive" });
+    if (images.length + files.length > 20) {
+      toast({ title: "Too many images", description: "Maximum 20 images per upload.", variant: "destructive" });
       e.target.value = "";
       return;
     }
@@ -431,7 +431,7 @@ export default function ContentUpload() {
                     <>
                       <ImagePlus className="w-8 h-8 text-primary/60" />
                       <span className="text-sm font-semibold text-primary/80">Tap to add photos</span>
-                      <span className="text-xs text-muted-foreground">JPG, PNG, HEIC • Any size — auto-compressed • Up to 10 pages</span>
+                      <span className="text-xs text-muted-foreground">JPG, PNG, HEIC • Any size — auto-compressed • Up to 20 pages</span>
                     </>
                   )}
                 </button>

@@ -62,6 +62,7 @@ export function WorksheetForm() {
   const [selectedStateBoard, setSelectedStateBoard] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedNoteIds, setSelectedNoteIds] = useState<number[]>([]);
+  const [topicTab, setTopicTab] = useState<"chapter" | "ncert" | "notes">("chapter");
 
   const { data: allUploads } = useQuery<ContentUpload[]>({
     queryKey: ["/api/content"],
@@ -166,9 +167,9 @@ export function WorksheetForm() {
       const payload = {
         ...data,
         board: boardToSend,
-        ncertBook: hasTextbook ? activeBook : undefined,
+        ncertBook: (topicTab === "ncert" && hasTextbook) ? activeBook : undefined,
         questionTypes: selectedQuestionTypes.length > 0 ? selectedQuestionTypes : undefined,
-        selectedNoteIds: selectedNoteIds.length > 0 ? selectedNoteIds : undefined,
+        selectedNoteIds: (topicTab === "notes" && selectedNoteIds.length > 0) ? selectedNoteIds : undefined,
       };
       const res = await apiRequest("POST", "/api/worksheets/generate", payload);
       const result = await res.json();
@@ -429,75 +430,34 @@ export function WorksheetForm() {
               render={({ field }) => (
                 <FormItem className="col-span-1 md:col-span-2">
                   <FormLabel className="text-sm font-semibold text-foreground/80">
-                    Topic
+                    Chapter / Topic
                   </FormLabel>
-                  <Tabs defaultValue="manual" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 mb-4">
-                      <TabsTrigger value="manual">Specific Topic</TabsTrigger>
-                      <TabsTrigger value="chapters">Chapters</TabsTrigger>
+                  <Tabs value={topicTab} onValueChange={(v) => setTopicTab(v as typeof topicTab)} className="w-full">
+                    <TabsList className="grid w-full grid-cols-3 mb-4">
+                      <TabsTrigger value="chapter">Chapter</TabsTrigger>
+                      <TabsTrigger value="ncert">NCERT Book</TabsTrigger>
+                      <TabsTrigger value="notes" className="flex items-center gap-1">
+                        <PenLine className="w-3 h-3" />
+                        My Notes
+                        {matchingUploads.length > 0 && (
+                          <span className="ml-1 w-4 h-4 text-[10px] rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">{matchingUploads.length}</span>
+                        )}
+                      </TabsTrigger>
                     </TabsList>
-                    <TabsContent value="manual">
+
+                    <TabsContent value="chapter">
                       <FormControl>
-                        <Input 
-                          placeholder="e.g. Photosynthesis, Trigonometry, World War II" 
+                        <Input
+                          placeholder="e.g. Photosynthesis, Trigonometry, The French Revolution"
                           className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl px-4"
-                          {...field} 
+                          {...field}
                           value={field.value || ""}
                         />
                       </FormControl>
-                      <FormDescription className="mt-2">Be as specific as possible for better results.</FormDescription>
-
-                      {matchingUploads.length > 0 && (
-                        <div className="mt-4 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <PenLine className="w-4 h-4 text-primary/70" />
-                            <p className="text-xs font-semibold text-foreground/80">My Notes</p>
-                            <span className="text-xs text-muted-foreground">— select to boost accuracy</span>
-                          </div>
-                          <div className="space-y-2">
-                            {matchingUploads.map((upload) => {
-                              const isSelected = selectedNoteIds.includes(upload.id);
-                              const label = [upload.chapter, upload.topic].filter(Boolean).join(" · ") || upload.sourceDescription || "General notes";
-                              const preview = upload.extractedText?.slice(0, 80);
-                              return (
-                                <button
-                                  key={upload.id}
-                                  type="button"
-                                  onClick={() => toggleNote(upload.id)}
-                                  className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-150 ${
-                                    isSelected
-                                      ? "border-primary bg-primary/8 shadow-sm"
-                                      : "border-border bg-background hover:border-primary/40"
-                                  }`}
-                                  data-testid={`toggle-note-manual-${upload.id}`}
-                                >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-1.5">
-                                        <FileText className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
-                                        <span className={`text-xs font-semibold truncate ${isSelected ? "text-primary" : "text-foreground"}`}>{label}</span>
-                                      </div>
-                                      {preview && (
-                                        <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-tight">{preview}{upload.extractedText.length > 80 ? "…" : ""}</p>
-                                      )}
-                                    </div>
-                                    <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${isSelected ? "border-primary bg-primary" : "border-muted-foreground/30"}`}>
-                                      {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
-                                    </div>
-                                  </div>
-                                </button>
-                              );
-                            })}
-                          </div>
-                          {selectedNoteIds.length > 0 && (
-                            <p className="text-xs text-primary font-medium">
-                              ✓ {selectedNoteIds.length} note{selectedNoteIds.length > 1 ? "s" : ""} selected — questions will be based on your content
-                            </p>
-                          )}
-                        </div>
-                      )}
+                      <FormDescription className="mt-2">Type a specific topic or chapter name for best results.</FormDescription>
                     </TabsContent>
-                    <TabsContent value="chapters">
+
+                    <TabsContent value="ncert">
                       {chapterBooks.length > 0 ? (
                         <div className="space-y-3">
                           {chapterBooks.length === 1 ? (
@@ -571,8 +531,8 @@ export function WorksheetForm() {
                           {field.value && (
                             <div className="flex items-center justify-between">
                               <p className="text-xs text-muted-foreground">
-                                Worksheet will be based on: <span className="font-medium text-foreground">{field.value}</span>
-                                {chapterBooks.length > 1 && selectedBook ? ` from ${selectedBook}` : ` from ${chapterBooks[0]?.bookName}`}
+                                Based on: <span className="font-medium text-foreground">{field.value}</span>
+                                {chapterBooks.length > 1 && selectedBook ? ` (${selectedBook})` : ` (${chapterBooks[0]?.bookName})`}
                               </p>
                               <button
                                 type="button"
@@ -596,57 +556,65 @@ export function WorksheetForm() {
                           ) : board !== "CBSE" && !isStateBoard ? (
                             <p>Chapter lists are available for CBSE and State Boards. Select one to browse chapters.</p>
                           ) : (
-                            <p>No chapter list available for {subject} ({className}). Use the "Specific Topic" tab to enter your topic manually.</p>
+                            <p>No chapter list available for {subject} ({className}). Use the "Chapter" tab to enter manually.</p>
                           )}
                         </div>
                       )}
+                    </TabsContent>
 
-                      {matchingUploads.length > 0 && (
-                        <div className="mt-4 space-y-2">
-                          <div className="flex items-center gap-2">
-                            <PenLine className="w-4 h-4 text-primary/70" />
-                            <p className="text-xs font-semibold text-foreground/80">My Notes</p>
-                            <span className="text-xs text-muted-foreground">— select to boost accuracy</span>
-                          </div>
-                          <div className="space-y-2">
-                            {matchingUploads.map((upload) => {
-                              const isSelected = selectedNoteIds.includes(upload.id);
-                              const label = [upload.chapter, upload.topic].filter(Boolean).join(" · ") || upload.sourceDescription || "General notes";
-                              const preview = upload.extractedText?.slice(0, 80);
-                              return (
-                                <button
-                                  key={upload.id}
-                                  type="button"
-                                  onClick={() => toggleNote(upload.id)}
-                                  className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-150 ${
-                                    isSelected
-                                      ? "border-primary bg-primary/8 shadow-sm"
-                                      : "border-border bg-background hover:border-primary/40"
-                                  }`}
-                                  data-testid={`toggle-note-${upload.id}`}
-                                >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-1.5">
-                                        <FileText className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
-                                        <span className={`text-xs font-semibold truncate ${isSelected ? "text-primary" : "text-foreground"}`}>{label}</span>
-                                      </div>
-                                      {preview && (
-                                        <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-tight">{preview}{upload.extractedText.length > 80 ? "…" : ""}</p>
-                                      )}
+                    <TabsContent value="notes">
+                      {matchingUploads.length > 0 ? (
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground mb-3">Select one or more saved notes — the worksheet will be based on your content.</p>
+                          {matchingUploads.map((upload) => {
+                            const isSelected = selectedNoteIds.includes(upload.id);
+                            const label = [upload.chapter, upload.topic].filter(Boolean).join(" · ") || upload.sourceDescription || "General notes";
+                            const preview = upload.extractedText?.slice(0, 100);
+                            return (
+                              <button
+                                key={upload.id}
+                                type="button"
+                                onClick={() => toggleNote(upload.id)}
+                                className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-150 ${
+                                  isSelected
+                                    ? "border-primary bg-primary/5 shadow-sm"
+                                    : "border-border bg-background hover:border-primary/40"
+                                }`}
+                                data-testid={`toggle-note-${upload.id}`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <FileText className={`w-3.5 h-3.5 shrink-0 ${isSelected ? "text-primary" : "text-muted-foreground"}`} />
+                                      <span className={`text-xs font-semibold truncate ${isSelected ? "text-primary" : "text-foreground"}`}>{label}</span>
                                     </div>
-                                    <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center ${isSelected ? "border-primary bg-primary" : "border-muted-foreground/30"}`}>
-                                      {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
-                                    </div>
+                                    {preview && (
+                                      <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2 leading-tight">{preview}{(upload.extractedText?.length || 0) > 100 ? "…" : ""}</p>
+                                    )}
                                   </div>
-                                </button>
-                              );
-                            })}
-                          </div>
+                                  <div className={`w-4 h-4 rounded-full border-2 shrink-0 mt-0.5 flex items-center justify-center transition-colors ${isSelected ? "border-primary bg-primary" : "border-muted-foreground/30"}`}>
+                                    {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
                           {selectedNoteIds.length > 0 && (
-                            <p className="text-xs text-primary font-medium">
-                              ✓ {selectedNoteIds.length} note{selectedNoteIds.length > 1 ? "s" : ""} selected — questions will be based on your content
+                            <p className="text-xs text-primary font-medium pt-1">
+                              ✓ {selectedNoteIds.length} note{selectedNoteIds.length > 1 ? "s" : ""} selected — worksheet will use your textbook content
                             </p>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="p-5 border-2 border-dashed rounded-xl text-center bg-muted/30 space-y-2">
+                          <PenLine className="w-8 h-8 mx-auto text-muted-foreground opacity-40" />
+                          <p className="text-sm font-semibold text-muted-foreground">No saved notes for this subject yet</p>
+                          {className && subject ? (
+                            <p className="text-xs text-muted-foreground">
+                              Go to <span className="text-primary font-medium">My Notes</span> to upload photos of your {subject} textbook pages or type your notes — then they'll appear here.
+                            </p>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">Select a grade and subject first to see your saved notes.</p>
                           )}
                         </div>
                       )}

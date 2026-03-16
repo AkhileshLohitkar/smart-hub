@@ -555,8 +555,8 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
       if (!board || !className || !subject || !Array.isArray(images) || images.length === 0) {
         return res.status(400).json({ message: "board, className, subject, and at least one image are required" });
       }
-      if (images.length > 10) {
-        return res.status(400).json({ message: "Maximum 10 images per upload" });
+      if (images.length > 20) {
+        return res.status(400).json({ message: "Maximum 20 images per upload" });
       }
 
       const extractedParts: string[] = [];
