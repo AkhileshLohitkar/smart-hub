@@ -16,6 +16,7 @@ import WorksheetView from "@/pages/WorksheetView";
 import History from "@/pages/History";
 import Children from "@/pages/Children";
 import TestPrep from "@/pages/TestPrep";
+import ContentUpload from "@/pages/ContentUpload";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
 import PaymentRecover from "@/pages/PaymentRecover";
@@ -57,6 +58,7 @@ function Router() {
       <Route path="/history" component={History} />
       <Route path="/children" component={Children} />
       <Route path="/test-prep" component={TestPrep} />
+      <Route path="/my-notes" component={ContentUpload} />
       <Route path="/payment/success" component={PaymentSuccess} />
       <Route path="/payment/cancel" component={PaymentCancel} />
       <Route path="/payment/recover" component={PaymentRecover} />

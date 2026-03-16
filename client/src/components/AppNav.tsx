@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { Menu, X, LogOut, User, FileText, Users, ClipboardList, Home as HomeIcon, CreditCard } from "lucide-react";
+import { Menu, X, LogOut, User, FileText, Users, ClipboardList, Home as HomeIcon, CreditCard, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +37,7 @@ const DEFAULT_LINKS: NavLink[] = [
   { href: "/children", label: "My Children", icon: <Users className="w-4 h-4" />, testId: "link-my-children" },
   { href: "/history", label: "My Worksheets", icon: <FileText className="w-4 h-4" />, testId: "link-my-worksheets" },
   { href: "/test-prep", label: "Test Prep", icon: <ClipboardList className="w-4 h-4" />, testId: "link-test-prep" },
+  { href: "/my-notes", label: "My Notes", icon: <Camera className="w-4 h-4" />, testId: "link-my-notes" },
 ];
 
 export function AppNav({ user, onLogout, activeLinks, showPlanBadge = true }: AppNavProps) {

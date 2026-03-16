@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { WorksheetForm } from "@/components/WorksheetForm";
-import { Sparkles, Brain, Printer, CheckCircle, Loader2, UserPlus, Crown, X } from "lucide-react";
+import { Sparkles, Brain, Printer, CheckCircle, Loader2, UserPlus, Crown, X, Camera, ArrowRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useChildren } from "@/hooks/use-children";
@@ -160,6 +160,35 @@ export default function Home() {
                 </motion.div>
               ))}
             </div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.5 }}
+              className="mt-6"
+            >
+              <Link href="/my-notes">
+                <div className="group relative overflow-hidden rounded-2xl border-2 border-dashed border-primary/30 hover:border-primary/60 bg-gradient-to-br from-primary/5 to-pink-500/5 hover:from-primary/10 hover:to-pink-500/10 p-5 cursor-pointer transition-all duration-200" data-testid="card-my-notes-cta">
+                  <div className="flex items-start gap-4">
+                    <div className="bg-gradient-primary rounded-xl p-2.5 shrink-0 shadow-sm">
+                      <Camera className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-bold text-foreground text-sm">Boost Worksheet Accuracy</h3>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gradient-primary text-white">New</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        Upload photos of your child's textbook pages. Our AI reads them and uses your exact book content to generate chapter-perfect worksheets.
+                      </p>
+                      <div className="flex items-center gap-1 mt-2 text-primary text-xs font-semibold group-hover:gap-2 transition-all">
+                        Upload my textbook <ArrowRight className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            </motion.div>
           </motion.div>
 
           <motion.div

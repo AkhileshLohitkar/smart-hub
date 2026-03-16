@@ -1,0 +1,474 @@
+import { useState, useRef } from "react";
+import { useUser, useLogout } from "@/hooks/use-auth";
+import { useEffect } from "react";
+import { useLocation, Link } from "wouter";
+import { AppNav } from "@/components/AppNav";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Camera,
+  Upload,
+  Trash2,
+  BookOpen,
+  Loader2,
+  CheckCircle,
+  ImagePlus,
+  X,
+  Info,
+  Sparkles,
+  FileText,
+} from "lucide-react";
+import type { ContentUpload as ContentUploadType } from "@shared/schema";
+
+const GRADES = [
+  "Nursery", "KG 1", "KG 2",
+  "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5",
+  "Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10",
+  "High School",
+];
+
+const BOARDS = [
+  "CBSE", "ICSE", "IGCSE",
+  "State Board - Maharashtra",
+  "State Board - Andhra Pradesh",
+  "State Board - Tamil Nadu",
+  "Common Core",
+];
+
+interface PreviewImage {
+  base64: string;
+  mimeType: string;
+  name: string;
+  dataUrl: string;
+  size: number;
+}
+
+export default function ContentUpload() {
+  const { data: user, isLoading: userLoading } = useUser();
+  const logoutMutation = useLogout();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [board, setBoard] = useState("");
+  const [className, setClassName] = useState("");
+  const [subject, setSubject] = useState("");
+  const [chapter, setChapter] = useState("");
+  const [topic, setTopic] = useState("");
+  const [sourceDescription, setSourceDescription] = useState("");
+  const [images, setImages] = useState<PreviewImage[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    if (!userLoading && !user) setLocation("/auth");
+  }, [user, userLoading, setLocation]);
+
+  const { data: uploads, isLoading: uploadsLoading } = useQuery<ContentUploadType[]>({
+    queryKey: ["/api/content"],
+    enabled: !!user,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/content/${id}`);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/content"] });
+      toast({ title: "Deleted", description: "Content removed successfully." });
+    },
+  });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (images.length + files.length > 10) {
+      toast({ title: "Too many images", description: "Maximum 10 images per upload.", variant: "destructive" });
+      return;
+    }
+    files.forEach((file) => {
+      if (!file.type.startsWith("image/")) {
+        toast({ title: "Invalid file", description: "Please upload image files only.", variant: "destructive" });
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        toast({ title: "File too large", description: `${file.name} exceeds 10MB.`, variant: "destructive" });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const dataUrl = ev.target?.result as string;
+        const base64 = dataUrl.split(",")[1];
+        setImages((prev) => [...prev, { base64, mimeType: file.type, name: file.name, dataUrl, size: file.size }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+  };
+
+  const removeImage = (idx: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleUpload = async () => {
+    if (!board || !className || !subject || images.length === 0) {
+      toast({ title: "Missing fields", description: "Please fill in Board, Grade, Subject, and add at least one image.", variant: "destructive" });
+      return;
+    }
+    setIsUploading(true);
+    try {
+      const payload = {
+        board,
+        className,
+        subject,
+        chapter,
+        topic,
+        sourceDescription,
+        images: images.map((img) => ({ base64: img.dataUrl, mimeType: img.mimeType })),
+      };
+      await apiRequest("POST", "/api/content/upload", payload);
+      qc.invalidateQueries({ queryKey: ["/api/content"] });
+      toast({
+        title: "Content uploaded!",
+        description: "Text extracted and saved. Future worksheets for this topic will use your content.",
+      });
+      setImages([]);
+      setChapter("");
+      setTopic("");
+      setSourceDescription("");
+    } catch (err: any) {
+      let msg = "Upload failed. Please try again.";
+      try { msg = JSON.parse(err.message.split(": ").slice(1).join(": ")).message || msg; } catch {}
+      toast({ title: "Upload failed", description: msg, variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  if (userLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-pink-500 animate-spin" />
+      </div>
+    );
+  }
+  if (!user) return null;
+
+  return (
+    <div className="min-h-screen bg-background flex flex-col">
+      <AppNav user={user} onLogout={() => logoutMutation.mutate()} />
+
+      <main className="flex-1 container mx-auto px-4 sm:px-6 lg:px-8 py-8 max-w-4xl">
+
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2.5 bg-gradient-primary rounded-xl text-white">
+              <Camera className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-display font-bold text-foreground">My Textbook Notes</h1>
+              <p className="text-sm text-muted-foreground">Upload photos of your textbook pages to boost worksheet accuracy</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 mb-6" data-testid="info-banner">
+          <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">How this works</p>
+            <ol className="text-xs text-blue-700 dark:text-blue-300 space-y-1 list-decimal list-inside">
+              <li>Take clear photos of your child's textbook pages (up to 10 pages at once)</li>
+              <li>Select the board, grade, subject, and chapter those pages belong to</li>
+              <li>Our AI reads the pages and saves the content to your personal library</li>
+              <li>When you generate worksheets for that topic, the AI uses your textbook content — giving you more accurate, book-specific questions</li>
+            </ol>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <Card className="p-6 space-y-4">
+            <h2 className="font-display font-bold text-lg flex items-center gap-2">
+              <Upload className="w-5 h-5 text-primary" /> Upload Pages
+            </h2>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Board *</Label>
+                <Select value={board} onValueChange={setBoard}>
+                  <SelectTrigger className="h-10" data-testid="select-upload-board">
+                    <SelectValue placeholder="Select board" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BOARDS.map((b) => (
+                      <SelectItem key={b} value={b}>{b}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Grade *</Label>
+                <Select value={className} onValueChange={setClassName}>
+                  <SelectTrigger className="h-10" data-testid="select-upload-grade">
+                    <SelectValue placeholder="Select grade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GRADES.map((g) => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Subject *</Label>
+              <Input
+                placeholder="e.g. Mathematics, Science, English"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                className="h-10"
+                data-testid="input-upload-subject"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Chapter (optional)</Label>
+                <Input
+                  placeholder="e.g. Chapter 5"
+                  value={chapter}
+                  onChange={(e) => setChapter(e.target.value)}
+                  className="h-10"
+                  data-testid="input-upload-chapter"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Topic (optional)</Label>
+                <Input
+                  placeholder="e.g. Photosynthesis"
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  className="h-10"
+                  data-testid="input-upload-topic"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Note (optional)</Label>
+              <Input
+                placeholder="e.g. Pages 42–55, Unit 3 exercises"
+                value={sourceDescription}
+                onChange={(e) => setSourceDescription(e.target.value)}
+                className="h-10"
+                data-testid="input-upload-note"
+              />
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleFileChange}
+              data-testid="input-file"
+            />
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full border-2 border-dashed border-primary/30 hover:border-primary/60 rounded-xl p-6 flex flex-col items-center gap-2 transition-colors cursor-pointer bg-primary/5 hover:bg-primary/10"
+              data-testid="button-add-images"
+            >
+              <ImagePlus className="w-8 h-8 text-primary/60" />
+              <span className="text-sm font-semibold text-primary/80">Tap to add photos</span>
+              <span className="text-xs text-muted-foreground">JPG, PNG, HEIC • Max 10MB each • Up to 10 pages</span>
+            </button>
+
+            {images.length > 0 && (
+              <div className="grid grid-cols-3 gap-2" data-testid="image-previews">
+                {images.map((img, idx) => (
+                  <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-border" data-testid={`preview-image-${idx}`}>
+                    <img src={img.dataUrl} alt={img.name} className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => removeImage(idx)}
+                      className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      data-testid={`button-remove-image-${idx}`}
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] px-1 py-0.5 truncate">
+                      Page {idx + 1}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {images.length > 0 && (
+              <p className="text-xs text-muted-foreground text-center">{images.length} page{images.length > 1 ? "s" : ""} selected</p>
+            )}
+
+            <Button
+              onClick={handleUpload}
+              disabled={isUploading || images.length === 0 || !board || !className || !subject}
+              className="w-full bg-gradient-primary text-white font-semibold rounded-xl h-11"
+              data-testid="button-upload-submit"
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Reading pages... (this may take a moment)
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Extract & Save Content
+                </>
+              )}
+            </Button>
+          </Card>
+
+          <Card className="p-6">
+            <h2 className="font-display font-bold text-lg flex items-center gap-2 mb-4">
+              <BookOpen className="w-5 h-5 text-primary" /> Tips for best results
+            </h2>
+            <div className="space-y-3">
+              {[
+                { icon: "📸", title: "Good lighting", desc: "Take photos in bright, even lighting. Avoid shadows across the page." },
+                { icon: "📐", title: "Keep it straight", desc: "Hold your phone directly above the page, as flat as possible." },
+                { icon: "🔍", title: "Full page", desc: "Capture the entire page including headings, diagrams, and examples." },
+                { icon: "📖", title: "Multiple pages", desc: "Upload all pages of a chapter together — the AI reads them in order." },
+                { icon: "✅", title: "One topic at a time", desc: "Upload pages per chapter or topic for the most accurate results." },
+              ].map((tip, idx) => (
+                <div key={idx} className="flex items-start gap-3">
+                  <span className="text-xl shrink-0">{tip.icon}</span>
+                  <div>
+                    <p className="text-sm font-semibold">{tip.title}</p>
+                    <p className="text-xs text-muted-foreground">{tip.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        <div>
+          <h2 className="font-display font-bold text-xl mb-4 flex items-center gap-2">
+            <FileText className="w-5 h-5 text-primary" />
+            Saved Content Library
+            {uploads && uploads.length > 0 && (
+              <Badge variant="secondary" className="text-xs">{uploads.length} saved</Badge>
+            )}
+          </h2>
+
+          {uploadsLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="p-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="w-10 h-10 rounded-lg" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="h-3 w-60" />
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : uploads && uploads.length > 0 ? (
+            <div className="space-y-3">
+              {uploads.map((upload) => (
+                <Card key={upload.id} className="p-4" data-testid={`card-upload-${upload.id}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center shrink-0">
+                        <BookOpen className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm truncate" data-testid={`text-upload-subject-${upload.id}`}>
+                          {upload.subject} {upload.chapter ? `— ${upload.chapter}` : ""}
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          <Badge variant="secondary" className="text-xs">{upload.board}</Badge>
+                          <Badge variant="outline" className="text-xs">{upload.className}</Badge>
+                          {upload.topic && <Badge variant="outline" className="text-xs text-primary border-primary/30">{upload.topic}</Badge>}
+                          <Badge variant="outline" className="text-xs text-muted-foreground">{upload.pageCount} page{upload.pageCount !== 1 ? "s" : ""}</Badge>
+                        </div>
+                        {upload.sourceDescription && (
+                          <p className="text-xs text-muted-foreground mt-1 truncate">{upload.sourceDescription}</p>
+                        )}
+                        <div className="flex items-center gap-1 mt-1.5">
+                          <CheckCircle className="w-3 h-3 text-green-500" />
+                          <p className="text-xs text-green-600 dark:text-green-400">Active — used in worksheet generation</p>
+                        </div>
+                      </div>
+                    </div>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="text-muted-foreground shrink-0" data-testid={`button-delete-upload-${upload.id}`}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Remove this content?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will remove the saved textbook content for <strong>{upload.subject}</strong>. Worksheets will no longer use this content.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => deleteMutation.mutate(upload.id)}
+                            className="bg-destructive text-destructive-foreground"
+                            data-testid="button-confirm-delete-upload"
+                          >
+                            Remove
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="p-10 text-center border-dashed" data-testid="empty-uploads">
+              <Camera className="w-12 h-12 mx-auto text-muted-foreground mb-3 opacity-40" />
+              <p className="font-semibold text-foreground mb-1">No content saved yet</p>
+              <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+                Upload your first textbook photos above to help the AI generate more accurate, chapter-specific worksheets.
+              </p>
+            </Card>
+          )}
+        </div>
+      </main>
+    </div>
+  );
+}

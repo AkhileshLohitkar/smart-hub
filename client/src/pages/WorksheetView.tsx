@@ -4,7 +4,7 @@ import { useWorksheet } from "@/hooks/use-worksheets";
 import { useUser } from "@/hooks/use-auth";
 import { WorksheetRender } from "@/components/WorksheetRender";
 import { StarRating } from "@/components/StarRating";
-import { ArrowLeft, Printer, Download, Loader2, MessageSquare } from "lucide-react";
+import { ArrowLeft, Printer, Download, Loader2, MessageSquare, Camera, Sparkles } from "lucide-react";
 import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -28,6 +28,7 @@ export default function WorksheetView() {
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [reviewText, setReviewText] = useState("");
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [contentUploadSuggestOpen, setContentUploadSuggestOpen] = useState(false);
   const showWatermark = !user || !NO_WATERMARK_PLANS.includes(user.plan);
   const worksheetRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -53,10 +54,13 @@ export default function WorksheetView() {
       const res = await apiRequest("POST", `/api/worksheets/${id}/rate`, { rating });
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, ratingValue) => {
       setRatingDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/worksheets", id] });
       toast({ title: "Thanks for rating!", description: "Your feedback helps us improve." });
+      if (ratingValue <= 3) {
+        setTimeout(() => setContentUploadSuggestOpen(true), 700);
+      }
     },
   });
 
@@ -388,6 +392,70 @@ export default function WorksheetView() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={contentUploadSuggestOpen} onOpenChange={setContentUploadSuggestOpen}>
+        <DialogContent className="max-w-md" data-testid="dialog-content-upload-suggest">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <div className="p-1.5 bg-gradient-primary rounded-lg">
+                <Camera className="w-4 h-4 text-white" />
+              </div>
+              Let's make it better!
+            </DialogTitle>
+            <DialogDescription className="text-sm leading-relaxed pt-1">
+              We're sorry the worksheet didn't quite hit the mark. Here's a way to make future worksheets much more accurate for your child's specific textbook.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="rounded-xl bg-gradient-to-br from-primary/5 to-pink-500/5 border border-primary/20 p-4">
+              <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" /> How "My Notes" helps
+              </p>
+              <ol className="space-y-2 text-xs text-muted-foreground">
+                <li className="flex gap-2.5 items-start">
+                  <span className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">1</span>
+                  <span>Open your child's textbook to the chapter you need</span>
+                </li>
+                <li className="flex gap-2.5 items-start">
+                  <span className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">2</span>
+                  <span>Take clear photos of each page in bright light (up to 10 pages)</span>
+                </li>
+                <li className="flex gap-2.5 items-start">
+                  <span className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">3</span>
+                  <span>Upload them to "My Notes" — our AI reads and saves your exact book content</span>
+                </li>
+                <li className="flex gap-2.5 items-start">
+                  <span className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">4</span>
+                  <span>Future worksheets for that topic will use your textbook's own words and examples</span>
+                </li>
+              </ol>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">
+              It only takes a few minutes and makes a big difference in worksheet quality.
+            </p>
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setContentUploadSuggestOpen(false)}
+              data-testid="button-skip-content-suggest"
+            >
+              Maybe Later
+            </Button>
+            <Link href="/my-notes">
+              <Button
+                className="bg-gradient-primary text-white font-semibold"
+                onClick={() => setContentUploadSuggestOpen(false)}
+                data-testid="button-go-my-notes"
+              >
+                <Camera className="w-4 h-4 mr-2" /> Upload My Textbook
+              </Button>
+            </Link>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

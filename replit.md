@@ -35,6 +35,7 @@ Preferred communication style: Simple, everyday language.
   - `/privacy` — Privacy Policy page (public)
   - `/refund-policy` — Refund and Cancellation Policy page (public)
   - `/contact` — Contact Us page with FAQ (public)
+  - `/my-notes` — My Textbook Notes (authenticated): upload textbook page photos, OCR extract via AI vision, manage content library
 - **State Management**: `@tanstack/react-query` for server state, `react-hook-form` for form state
 - **UI Components**: shadcn/ui (new-york style) with Radix UI primitives, Tailwind CSS for styling
 - **Color Theme**: Instagram-inspired gradient (purple → pink → orange) using CSS custom properties; worksheet accent color is electric blue (#0066FF)
@@ -55,6 +56,7 @@ Preferred communication style: Simple, everyday language.
   - **Tamil Nadu (Samacheer Kalvi / TN SCERT)**: All subjects Grades 1-10 including Mathematics, English, EVS, Science, Social Science. Published by Tamil Nadu Textbook and Educational Services Corporation.
   - Subject alias matching: "Science" matches "General Science"/"Physical Science"/"Biological Science"; "Social Science" matches "Social Studies"/"History"/"Geography"; "Maths"/"Math" matches "Mathematics"
   - AI prompt includes grammar questions for language subjects (tenses, active/passive voice, synonyms/antonyms, vocabulary) and social science-specific question types (map-based, timeline, key personalities)
+- **My Notes (Content Upload)**: Users upload photos of textbook pages → AI OCR extracts text → stored per board/class/subject/chapter → injected into worksheet generation prompt for chapter-accurate questions. Dashboard shows "Boost Worksheet Accuracy" card. Low ratings (≤3 stars) on WorksheetView trigger a polite popup explaining the process and linking to /my-notes.
 - **Mobile Nav**: Shared `AppNav` component (`client/src/components/AppNav.tsx`) with hamburger menu for mobile; used across Home, Children, History, TestPrep pages
 - **Logo**: Qik Worksheet logo (`@assets/IMG_6540_(1)_1772323458180.png`) shown in nav bars across all pages (w-20 mobile, w-32 desktop), and as watermark on worksheets
 - **Landing Page Auth State**: Landing page shows "Go to Dashboard" button when user is logged in, Login/Sign Up buttons when not
