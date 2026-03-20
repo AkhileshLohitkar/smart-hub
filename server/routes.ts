@@ -254,10 +254,21 @@ ${isYoungClass ? `14. This is for a YOUNG LEARNER (${input.className}). Include 
         topics: z.array(z.string()).min(1),
         marksScheme: z.enum(["20", "50", "80"]),
         difficulty: z.string().min(1),
+        selectedNoteIds: z.array(z.number()).optional(),
+        ncertBook: z.string().optional(),
       });
 
-      const input = schema.parse(req.body);
+      const { selectedNoteIds: testNoteIds, ncertBook: testNcertBook, ...inputRest } = schema.parse(req.body);
+      const input = inputRest;
       const userId = req.user.id;
+
+      let myNotesContext = "";
+      if (testNoteIds && testNoteIds.length > 0) {
+        const noteRecords = await storage.getContentUploadsByIds(userId, testNoteIds);
+        if (noteRecords.length > 0) {
+          myNotesContext = `\n\nUSER'S TEXTBOOK NOTES (use as PRIMARY source for test questions):\n${noteRecords.map((n, i) => `--- Note ${i + 1} [${n.chapter || n.topic || n.subject}] ---\n${n.extractedText}`).join("\n\n")}`;
+        }
+      }
 
       const user = await storage.getUser(userId);
       if (user && user.plan === "free" && user.worksheetsGenerated >= 5) {
@@ -273,7 +284,7 @@ Education Board: ${input.board}
 Subject: ${input.subject}
 Topics to cover: ${topicsList}
 Total Marks: ${totalMarks}
-Difficulty: ${input.difficulty}
+Difficulty: ${input.difficulty}${testNcertBook ? `\nNCERT/Prescribed Textbook: ${testNcertBook} — Generate all questions strictly aligned to this textbook's content and terminology.` : ""}${myNotesContext}
 
 The output must be strictly in JSON format matching this structure:
 {
