@@ -1,7 +1,6 @@
 export async function syncUserToEmailList(
   email: string,
-  name: string,
-  userCategory?: string | null
+  name: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -33,7 +32,6 @@ export async function syncUserToEmailList(
           last_name: lastName,
           unsubscribed: false,
           data: {
-            user_category: userCategory || "Not specified",
             source: "qikworksheet.in",
           },
         }),

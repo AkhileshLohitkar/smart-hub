@@ -1,0 +1,39 @@
+================================================================================
+WHERE TO PUT YOUR SECRETS (fixes OpenAI 401 / sk-local-dev-placeholder)
+================================================================================
+
+1) Create a file named exactly:
+
+   .env
+
+2) It MUST live in the SAME folder as package.json for this project, i.e.:
+
+   Smart-Edu-Hub\Smart-Edu-Hub\.env
+
+   (If you opened "Smart-Edu-Hub" twice in the path, use the INNER one that has
+   package.json, vite.config.ts, and server\ next to it.)
+
+3) If Cursor hides .env: it is gitignored. We set .vscode\settings.json so the
+   explorer can show ignored files — reload the window, or open .env via:
+   File → Open File → paste the full path to .env
+
+4) Minimum lines to fix worksheet / LLM 401 (use YOUR real values):
+
+   AI_INTEGRATIONS_OPENAI_BASE_URL=https://...   (from Replit Secrets, if any)
+   AI_INTEGRATIONS_OPENAI_API_KEY=sk-...         (your real key or Replit proxy key)
+
+   Optional instead of the API_KEY line:
+   OPENAI_API_KEY=sk-...
+
+   Razorpay and SESSION_SECRET do NOT fix OpenAI; add them separately:
+
+   RAZORPAY_KEY_ID=...
+   RAZORPAY_KEY_SECRET=...
+   SESSION_SECRET=long-random-string
+   DATABASE_URL=postgresql://...
+
+5) Restart the terminal / dev server after saving .env.
+
+6) Template to copy: .env.example
+
+================================================================================

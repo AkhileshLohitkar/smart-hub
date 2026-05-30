@@ -1,95 +1,13 @@
-import { useState, useCallback, useRef } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Brain, Printer, CheckCircle, Star, BookOpen, Users, Download, Sparkles, ArrowRight, Shield, Zap, Quote, Loader2 } from "lucide-react";
+import { Brain, Printer, CheckCircle, Star, BookOpen, Users, Download, Sparkles, ArrowRight, Shield, Zap, Quote } from "lucide-react";
 import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useUser } from "@/hooks/use-auth";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
-}
-
-interface PlanInfo {
-  name: string;
-  price: string;
-  period: string;
-  children: string;
-  features: string[];
-  highlight: boolean;
-  badge: string;
-  planKey: string;
-}
-
-const plans: PlanInfo[] = [
-  {
-    name: "Free",
-    price: "₹0",
-    period: "",
-    children: "1 Child",
-    features: ["5 worksheets total", "All subjects", "Print & download", "Basic support"],
-    highlight: false,
-    badge: "",
-    planKey: "",
-  },
-  {
-    name: "Starter",
-    price: "₹99",
-    period: "/month",
-    children: "1 Child",
-    features: ["Unlimited worksheets", "All boards & subjects", "Print & download", "Priority support"],
-    highlight: false,
-    badge: "",
-    planKey: "starter_monthly",
-  },
-  {
-    name: "Starter Annual",
-    price: "₹999",
-    period: "/year",
-    children: "1 Child",
-    features: ["Unlimited worksheets", "All boards & subjects", "Print & download", "Priority support", "Save ₹189/year"],
-    highlight: true,
-    badge: "Best Value",
-    planKey: "starter_annual",
-  },
-  {
-    name: "Family",
-    price: "₹189",
-    period: "/month",
-    children: "2-3 Children",
-    features: ["Unlimited worksheets", "Multi-child profiles", "All boards & subjects", "Priority support"],
-    highlight: false,
-    badge: "",
-    planKey: "family_monthly",
-  },
-  {
-    name: "Family Annual",
-    price: "₹1,799",
-    period: "/year",
-    children: "2-3 Children",
-    features: ["Unlimited worksheets", "Multi-child profiles", "All boards & subjects", "Premium support", "Save ₹469/year"],
-    highlight: false,
-    badge: "Popular",
-    planKey: "family_annual",
-  },
-  {
-    name: "No Watermark",
-    price: "₹349",
-    period: "/year",
-    children: "Unlimited Children",
-    features: ["Unlimited worksheets", "No watermark on worksheets", "Clean print-ready output", "All boards & subjects", "Premium support"],
-    highlight: true,
-    badge: "Special",
-    planKey: "no_watermark",
-  },
-];
+import { PricingPlansSection } from "@/components/PricingPlansSection";
 
 const features = [
   {
@@ -100,7 +18,7 @@ const features = [
   {
     icon: <BookOpen className="w-6 h-6" />,
     title: "All Indian Boards",
-    description: "Full support for CBSE, ICSE, IGCSE, and State Board syllabi from Class 1 to 10.",
+    description: "Full support for CBSE and State Board syllabi from Class 1 to 10.",
   },
   {
     icon: <Download className="w-6 h-6" />,
@@ -124,116 +42,8 @@ const features = [
   },
 ];
 
-function loadRazorpayScript(): Promise<boolean> {
-  return new Promise((resolve) => {
-    if (window.Razorpay) {
-      resolve(true);
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-}
-
 export default function Landing() {
   const { data: user } = useUser();
-  const [, setLocation] = useLocation();
-  const { toast } = useToast();
-  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
-  const modalOpenRef = useRef(false);
-
-  const handleCheckout = useCallback(async (planKey: string) => {
-    if (!user) {
-      setLocation("/auth?tab=register");
-      return;
-    }
-
-    if (modalOpenRef.current || checkoutLoading !== null) {
-      toast({ title: "Payment in progress", description: "Please complete or close the current payment window first.", variant: "destructive" });
-      return;
-    }
-
-    setCheckoutLoading(planKey);
-    modalOpenRef.current = true;
-    try {
-      const loaded = await loadRazorpayScript();
-      if (!loaded) {
-        toast({ title: "Error", description: "Could not load payment gateway. Please try again.", variant: "destructive" });
-        setCheckoutLoading(null);
-        modalOpenRef.current = false;
-        return;
-      }
-
-      const orderRes = await apiRequest("POST", "/api/razorpay/create-order", { planKey });
-      const orderData = await orderRes.json();
-
-      if (!orderData.orderId) {
-        toast({ title: "Error", description: orderData.message || "Could not create order.", variant: "destructive" });
-        setCheckoutLoading(null);
-        modalOpenRef.current = false;
-        return;
-      }
-
-      const keyRes = await apiRequest("GET", "/api/razorpay/key");
-      const keyData = await keyRes.json();
-
-      const options = {
-        key: keyData.keyId,
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: "Qik Worksheets",
-        description: `${orderData.planName} Subscription`,
-        order_id: orderData.orderId,
-        handler: async (response: any) => {
-          try {
-            const verifyRes = await apiRequest("POST", "/api/razorpay/verify-payment", {
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-            });
-            const verifyData = await verifyRes.json();
-            if (verifyData.success) {
-              queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-              modalOpenRef.current = false;
-              setCheckoutLoading(null);
-              setLocation(`/payment/success?plan=${orderData.planName}`);
-            } else {
-              toast({ title: "Verification failed", description: "Payment could not be verified. Please use 'Recover Payment' if you were charged.", variant: "destructive" });
-              setCheckoutLoading(null);
-              modalOpenRef.current = false;
-            }
-          } catch {
-            toast({ title: "Error", description: "Payment verification failed. If you were charged, please use 'Recover Payment' from your dashboard.", variant: "destructive" });
-            setCheckoutLoading(null);
-            modalOpenRef.current = false;
-          }
-        },
-        prefill: {
-          name: user.name,
-          email: user.email,
-        },
-        theme: {
-          color: "#8B5CF6",
-        },
-        modal: {
-          ondismiss: () => {
-            setCheckoutLoading(null);
-            modalOpenRef.current = false;
-          },
-        },
-      };
-
-      const razorpay = new window.Razorpay(options);
-      razorpay.open();
-    } catch {
-      toast({ title: "Checkout failed", description: "Could not start checkout. Please try again.", variant: "destructive" });
-      setCheckoutLoading(null);
-      modalOpenRef.current = false;
-    }
-  }, [user, setLocation, toast, checkoutLoading]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -247,7 +57,7 @@ export default function Landing() {
             <ThemeToggle />
             {user ? (
               <>
-                <Link href="/dashboard">
+                <Link href="/new-worksheet">
                   <Button className="bg-gradient-primary text-white font-semibold rounded-xl hover:opacity-90 transition-opacity text-sm sm:text-base" data-testid="nav-dashboard">
                     Go to Dashboard
                   </Button>
@@ -295,7 +105,7 @@ export default function Landing() {
 
             <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed">
               Qik Worksheets uses AI to generate curriculum-aligned, print-ready practice materials
-              for CBSE, ICSE, IGCSE, and State Boards. Save hours of preparation time.
+              for CBSE and State Board. Save hours of preparation time.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -349,84 +159,7 @@ export default function Landing() {
 
       <section className="py-20 px-4" id="pricing">
         <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl sm:text-4xl font-display font-bold mb-4">
-              Simple, transparent <span className="text-gradient-primary">pricing</span>
-            </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Start free. Upgrade when you're ready.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
-            {plans.map((plan, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.08 }}
-              >
-                <Card className={`p-6 h-full flex flex-col relative ${plan.highlight ? 'border-2 border-pink-500 shadow-lg shadow-pink-500/10' : 'border-border/50'}`}
-                  data-testid={`plan-card-${plan.name.toLowerCase().replace(/\s/g, '-')}`}
-                >
-                  {plan.badge && (
-                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-primary text-white border-0 text-xs">
-                      {plan.badge}
-                    </Badge>
-                  )}
-                  <h3 className="font-display font-bold text-lg mb-1">{plan.name}</h3>
-                  <p className="text-xs text-muted-foreground mb-3">{plan.children}</p>
-                  <div className="mb-4">
-                    <span className="text-3xl font-display font-extrabold">{plan.price}</span>
-                    <span className="text-muted-foreground text-sm">{plan.period}</span>
-                  </div>
-                  <ul className="space-y-2 mb-6 flex-1">
-                    {plan.features.map((f, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm">
-                        <CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
-                        <span>{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {plan.planKey ? (
-                    <Button
-                      className={`w-full rounded-xl font-semibold ${plan.highlight ? 'bg-gradient-primary text-white hover:opacity-90' : ''}`}
-                      variant={plan.highlight ? "default" : "outline"}
-                      onClick={() => handleCheckout(plan.planKey)}
-                      disabled={checkoutLoading === plan.planKey}
-                      data-testid={`button-checkout-${plan.planKey}`}
-                    >
-                      {checkoutLoading === plan.planKey ? (
-                        <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</>
-                      ) : (
-                        "Choose Plan"
-                      )}
-                    </Button>
-                  ) : (
-                    <Link href="/auth?tab=register">
-                      <Button
-                        className="w-full rounded-xl font-semibold"
-                        variant="outline"
-                      >
-                        Start Free
-                      </Button>
-                    </Link>
-                  )}
-                </Card>
-              </motion.div>
-            ))}
-          </div>
-
-          {user && (
-            <div className="text-center mt-8">
-              <Link href="/payment/recover">
-                <button className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors" data-testid="link-recover-payment">
-                  Paid but your plan wasn't upgraded? Recover your payment →
-                </button>
-              </Link>
-            </div>
-          )}
+          <PricingPlansSection headerVariant="landing" showPaymentRecover={!!user} />
         </div>
       </section>
 
@@ -573,62 +306,6 @@ export default function Landing() {
           </Link>
         </div>
       </section>
-
-      <footer className="py-12 px-4 border-t border-border/50 bg-muted/20">
-        <div className="container mx-auto max-w-6xl">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <img src={logoImage} alt="Qik Worksheet" className="w-20 h-20 rounded-md object-contain drop-shadow-md logo-vibrant" />
-                <span className="font-display font-bold text-gradient-primary">Qik Worksheets</span>
-              </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                AI-powered educational worksheet generator for CBSE, ICSE, IGCSE, and State Boards.
-              </p>
-            </div>
-
-            <div>
-              <h4 className="font-display font-bold text-sm mb-4 text-foreground">Quick Links</h4>
-              <ul className="space-y-2.5">
-                <li><Link href="/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="footer-about">About Us</Link></li>
-                <li><Link href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="footer-contact">Contact Us</Link></li>
-                <li><a href="#pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="footer-pricing">Pricing</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-display font-bold text-sm mb-4 text-foreground">Legal</h4>
-              <ul className="space-y-2.5">
-                <li><Link href="/terms" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="footer-terms">Terms & Conditions</Link></li>
-                <li><Link href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="footer-privacy">Privacy Policy</Link></li>
-                <li><Link href="/refund-policy" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="footer-refund">Refund & Cancellation Policy</Link></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-display font-bold text-sm mb-4 text-foreground">Get in Touch</h4>
-              <ul className="space-y-2.5">
-                <li>
-                  <a href="mailto:hi@qikworksheet.in" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="footer-email">
-                    hi@qikworksheet.in
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="border-t border-border/50 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
-              &copy; {new Date().getFullYear()} Qik Worksheets. All rights reserved.
-            </p>
-            <div className="flex items-center gap-4">
-              <Link href="/terms" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Terms</Link>
-              <Link href="/privacy" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Privacy</Link>
-              <Link href="/refund-policy" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Refunds</Link>
-            </div>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

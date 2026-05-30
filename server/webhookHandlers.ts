@@ -61,13 +61,13 @@ export class WebhookHandlers {
           }
         }
 
-        const config = PLAN_CONFIG[planKey] || { plan: 'starter', maxChildren: 1 };
+        const config = PLAN_CONFIG[planKey] || { plan: "starter" };
         const periodEnd = subscription.current_period_end
           ? new Date(subscription.current_period_end * 1000)
           : null;
 
         await storage.updateUserStripeSubscription(user.id, subscription.id);
-        await storage.updateUserPlan(user.id, config.plan, config.maxChildren, periodEnd);
+        await storage.updateUserPlan(user.id, config.plan, periodEnd);
         console.log(`Updated user ${user.id} to plan ${config.plan} via webhook`);
       }
     }
@@ -79,7 +79,7 @@ export class WebhookHandlers {
       const user = await storage.getUserByStripeCustomerId(customerId);
       if (!user) return;
 
-      await storage.updateUserPlan(user.id, 'free', 1, null);
+      await storage.updateUserPlan(user.id, "free", null);
       await storage.updateUserStripeSubscription(user.id, '');
       console.log(`Reverted user ${user.id} to free plan (subscription cancelled)`);
     }

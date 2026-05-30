@@ -1,0 +1,6 @@
+[1G[0K⠙[1G[0K
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+[1G[0K⠙[1G[0K10:04:28 AM [express] serving on port 5000
+10:04:41 AM [express] GET /api/auth/user 304 in 7ms :: {"id":3,"email":"pneha22@gmail.com","name":"neha","userCategory":null,"googleId":null,"facebookId":null,"plan":"family_annual","planExpiresAt":null,"maxChildren":99,"worksheetsGenerated":61,"stripeCustomerId":null,"stripeSubscriptionId":null,"razorpayCustomerId":null,"razorpaySubscriptionId":null,"createdAt":"2026-02-28T18:00:56.735Z"}

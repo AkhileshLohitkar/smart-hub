@@ -15,13 +15,12 @@ export function initPostHog(): void {
 
 export function identifyUser(
   userId: string | number,
-  properties: { email?: string; name?: string; userCategory?: string | null }
+  properties: { email?: string; name?: string }
 ): void {
   if (!initialized) return;
   posthog.identify(String(userId), {
     email: properties.email,
     name: properties.name,
-    user_category: properties.userCategory || "Not specified",
   });
 }
 

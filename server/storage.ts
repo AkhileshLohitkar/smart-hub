@@ -1,12 +1,12 @@
 import { db } from "./db";
-import { users, children, worksheets, contentUploads, type InsertUser, type User, type InsertChild, type Child, type InsertWorksheet, type WorksheetResponse, type ContentUpload } from "@shared/schema";
-import { eq, and, desc, sql, gte, ilike, or, inArray } from "drizzle-orm";
+import { users, worksheets, contentUploads, payments, type InsertUser, type User, type InsertWorksheet, type WorksheetResponse, type ContentUpload, type Payment } from "@shared/schema";
+import { eq, and, desc, sql, gte, ilike, or, inArray, lt } from "drizzle-orm";
+import { sanitizeJsonStrings, sanitizeRecordStrings } from "./utils/sanitizeText";
 
 export interface AdminUserRow {
   id: number;
   email: string;
   name: string;
-  userCategory: string | null;
   plan: string;
   worksheetsGenerated: number;
   createdAt: Date | null;
@@ -22,17 +22,24 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByGoogleId(googleId: string): Promise<User | undefined>;
   getUserByFacebookId(facebookId: string): Promise<User | undefined>;
+  getUserByStripeCustomerId(stripeCustomerId: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   createOAuthUser(data: { email: string; name: string; googleId?: string; facebookId?: string }): Promise<User>;
   linkGoogleId(userId: number, googleId: string): Promise<User>;
   linkFacebookId(userId: number, facebookId: string): Promise<User>;
-  updateUserPlan(userId: number, plan: string, maxChildren: number, expiresAt: Date | null): Promise<User>;
+  updateUserPlan(userId: number, plan: string, expiresAt: Date | null): Promise<User>;
+  updateUserSubscriptionFields(
+    userId: number,
+    fields: {
+      planType?: string;
+      planName?: string;
+      billingCycle?: string | null;
+      studentCount?: number | null;
+    }
+  ): Promise<User>;
   updateRazorpayCustomerId(userId: number, razorpayCustomerId: string): Promise<User>;
+  updateUserStripeSubscription(userId: number, stripeSubscriptionId: string): Promise<User>;
   incrementWorksheetCount(userId: number): Promise<void>;
-  getChildren(userId: number): Promise<Child[]>;
-  getChild(id: number): Promise<Child | undefined>;
-  createChild(child: InsertChild, userId: number): Promise<Child>;
-  deleteChild(id: number, userId: number): Promise<boolean>;
   getWorksheet(id: number): Promise<WorksheetResponse | undefined>;
   createWorksheet(worksheet: InsertWorksheet, content: any, userId?: number): Promise<WorksheetResponse>;
   rateWorksheet(id: number, rating: number): Promise<WorksheetResponse>;
@@ -45,6 +52,22 @@ export interface IStorage {
   deleteContentUpload(id: number, userId: number): Promise<boolean>;
   searchContentUploads(userId: number, className: string, subject: string, topic?: string): Promise<ContentUpload[]>;
   getContentUploadsByIds(userId: number, ids: number[]): Promise<ContentUpload[]>;
+  createPayment(data: {
+    userId: number;
+    planKey: string;
+    billingCycle?: string | null;
+    amount: number;
+    currency: string;
+    worksheetLimit?: number | null;
+    razorpayOrderId?: string | null;
+    razorpayPaymentId?: string | null;
+    status: string;
+  }): Promise<Payment>;
+  updatePaymentByOrderId(
+    razorpayOrderId: string,
+    data: { razorpayPaymentId?: string; status?: string },
+  ): Promise<Payment | undefined>;
+  syncFreePaymentWorksheetLimits(freeLimit: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -65,6 +88,11 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByFacebookId(facebookId: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.facebookId, facebookId));
+    return user;
+  }
+
+  async getUserByStripeCustomerId(stripeCustomerId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.stripeCustomerId, stripeCustomerId));
     return user;
   }
 
@@ -94,9 +122,26 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async updateUserPlan(userId: number, plan: string, maxChildren: number, expiresAt: Date | null): Promise<User> {
+  async updateUserPlan(userId: number, plan: string, expiresAt: Date | null): Promise<User> {
     const [updated] = await db.update(users)
-      .set({ plan, maxChildren, planExpiresAt: expiresAt })
+      .set({ plan, planExpiresAt: expiresAt })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async updateUserSubscriptionFields(
+    userId: number,
+    fields: { planType?: string; planName?: string; billingCycle?: string | null; studentCount?: number | null }
+  ): Promise<User> {
+    const [updated] = await db
+      .update(users)
+      .set({
+        ...(fields.planType !== undefined ? { planType: fields.planType } : {}),
+        ...(fields.planName !== undefined ? { planName: fields.planName } : {}),
+        ...(fields.billingCycle !== undefined ? { billingCycle: fields.billingCycle } : {}),
+        ...(fields.studentCount !== undefined ? { studentCount: fields.studentCount } : {}),
+      })
       .where(eq(users.id, userId))
       .returning();
     return updated;
@@ -105,6 +150,14 @@ export class DatabaseStorage implements IStorage {
   async updateRazorpayCustomerId(userId: number, razorpayCustomerId: string): Promise<User> {
     const [updated] = await db.update(users)
       .set({ razorpayCustomerId })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
+  async updateUserStripeSubscription(userId: number, stripeSubscriptionId: string): Promise<User> {
+    const [updated] = await db.update(users)
+      .set({ stripeSubscriptionId })
       .where(eq(users.id, userId))
       .returning();
     return updated;
@@ -119,33 +172,26 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getChildren(userId: number): Promise<Child[]> {
-    return db.select().from(children).where(eq(children.userId, userId));
-  }
-
-  async getChild(id: number): Promise<Child | undefined> {
-    const [child] = await db.select().from(children).where(eq(children.id, id));
-    return child;
-  }
-
-  async createChild(child: InsertChild, userId: number): Promise<Child> {
-    const [created] = await db.insert(children).values({ ...child, userId }).returning();
-    return created;
-  }
-
-  async deleteChild(id: number, userId: number): Promise<boolean> {
-    const result = await db.delete(children)
-      .where(and(eq(children.id, id), eq(children.userId, userId)))
-      .returning();
-    return result.length > 0;
-  }
-
   async getWorksheet(id: number): Promise<WorksheetResponse | undefined> {
     const [worksheet] = await db.select().from(worksheets).where(eq(worksheets.id, id));
     return worksheet;
   }
 
   async createWorksheet(worksheet: InsertWorksheet, content: any, userId?: number): Promise<WorksheetResponse> {
+    const sanitizedWorksheet = sanitizeRecordStrings(worksheet as unknown as Record<string, unknown>) as InsertWorksheet;
+    const sanitizedContent = sanitizeJsonStrings(content);
+    if (process.env.DEBUG_SANITIZE_TEXT === "1") {
+      try {
+        const beforeLen = JSON.stringify(content ?? {}).length;
+        const afterLen = JSON.stringify(sanitizedContent ?? {}).length;
+        if (beforeLen !== afterLen) {
+          console.log("[sanitize] Worksheet content sanitized", { beforeLen, afterLen });
+        }
+      } catch {
+        // ignore JSON stringify issues for debug logging
+      }
+    }
+
     const board = (worksheet.board || "GEN").toUpperCase().replace(/\s+/g, '');
     const subjectWords = (worksheet.subject || "SUB").trim().split(/\s+/);
     const subjectInitials = subjectWords.length === 1
@@ -168,8 +214,8 @@ export class DatabaseStorage implements IStorage {
     const serialNumber = `${board}-${subjectInitials}-${chapterSlug}-${String(seqNum).padStart(3, '0')}`;
 
     const [created] = await db.insert(worksheets).values({
-      ...worksheet,
-      content,
+      ...sanitizedWorksheet,
+      content: sanitizedContent,
       userId: userId || null,
       serialNumber,
     }).returning();
@@ -194,7 +240,6 @@ export class DatabaseStorage implements IStorage {
         id: users.id,
         email: users.email,
         name: users.name,
-        userCategory: users.userCategory,
         plan: users.plan,
         worksheetsGenerated: users.worksheetsGenerated,
         createdAt: users.createdAt,
@@ -270,6 +315,61 @@ export class DatabaseStorage implements IStorage {
         eq(contentUploads.userId, userId),
         inArray(contentUploads.id, ids)
       ));
+  }
+
+  async createPayment(data: {
+    userId: number;
+    planKey: string;
+    billingCycle?: string | null;
+    amount: number;
+    currency: string;
+    worksheetLimit?: number | null;
+    razorpayOrderId?: string | null;
+    razorpayPaymentId?: string | null;
+    status: string;
+  }): Promise<Payment> {
+    const [created] = await db.insert(payments).values({
+      userId: data.userId,
+      planKey: data.planKey,
+      billingCycle: data.billingCycle ?? null,
+      amount: data.amount,
+      currency: data.currency,
+      worksheetLimit: data.worksheetLimit ?? null,
+      razorpayOrderId: data.razorpayOrderId ?? null,
+      razorpayPaymentId: data.razorpayPaymentId ?? null,
+      status: data.status,
+    }).returning();
+    return created;
+  }
+
+  async updatePaymentByOrderId(
+    razorpayOrderId: string,
+    data: { razorpayPaymentId?: string; status?: string },
+  ): Promise<Payment | undefined> {
+    const [updated] = await db
+      .update(payments)
+      .set({
+        ...(data.razorpayPaymentId !== undefined ? { razorpayPaymentId: data.razorpayPaymentId } : {}),
+        ...(data.status !== undefined ? { status: data.status } : {}),
+      })
+      .where(eq(payments.razorpayOrderId, razorpayOrderId))
+      .returning();
+    return updated;
+  }
+
+  async syncFreePaymentWorksheetLimits(freeLimit: number): Promise<number> {
+    const updated = await db
+      .update(payments)
+      .set({ worksheetLimit: freeLimit })
+      .where(
+        and(
+          eq(payments.planKey, "free_2"),
+          or(eq(payments.status, "free"), eq(payments.amount, 0)),
+          or(sql`${payments.worksheetLimit} IS NULL`, lt(payments.worksheetLimit, freeLimit)),
+        ),
+      )
+      .returning({ id: payments.id });
+    return updated.length;
   }
 
   async searchContentUploads(userId: number, className: string, subject: string, topic?: string): Promise<ContentUpload[]> {

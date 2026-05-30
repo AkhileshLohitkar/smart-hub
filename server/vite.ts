@@ -31,7 +31,9 @@ export async function setupVite(server: Server, app: Express) {
 
   app.use(vite.middlewares);
 
-  app.use("/{*path}", async (req, res, next) => {
+  // SPA fallback: serve index.html for non-API routes.
+  // Use a RegExp to avoid path-to-regexp wildcard parsing differences across Express/router versions.
+  app.use(/^(?!\/api).*/, async (req, res, next) => {
     const url = req.originalUrl;
 
     try {

@@ -2,12 +2,11 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, Sparkles, BookOpen, LayoutList, Settings2, UserRound, X, CheckSquare, BookMarked, Lock, PenLine, FileText } from "lucide-react";
+import { Loader2, Sparkles, BookOpen, LayoutList, Settings2, CheckSquare, BookMarked, PenLine, FileText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -23,11 +22,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useGenerateWorksheet } from "@/hooks/use-worksheets";
-import { useChildren } from "@/hooks/use-children";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { insertWorksheetSchema } from "@shared/schema";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { findNcertBooks } from "@/lib/ncertBooks";
 import { getSubjectBooks, type BookInfo } from "@/lib/ncertChapters";
@@ -56,14 +54,12 @@ export function WorksheetForm() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const generateMutation = useGenerateWorksheet();
-  const { data: children } = useChildren();
-  const [selectedChildId, setSelectedChildId] = useState<number | null>(null);
   const [selectedQuestionTypes, setSelectedQuestionTypes] = useState<string[]>([]);
   const [selectedBook, setSelectedBook] = useState<string>("");
   const [selectedStateBoard, setSelectedStateBoard] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedNoteIds, setSelectedNoteIds] = useState<number[]>([]);
-  const [topicTab, setTopicTab] = useState<"chapter" | "ncert" | "notes">("chapter");
+  const [topicTab, setTopicTab] = useState<"ncert" | "notes" | "topic">("ncert");
 
   const { data: allUploads } = useQuery<ContentUpload[]>({
     queryKey: ["/api/content"],
@@ -83,37 +79,6 @@ export function WorksheetForm() {
     },
   });
 
-  const hasChildren = children && children.length > 0;
-  const isChildLocked = selectedChildId !== null;
-  const isFormLocked = hasChildren && !isChildLocked;
-
-  useEffect(() => {
-    if (selectedChildId && children) {
-      const child = children.find((c) => c.id === selectedChildId);
-      if (child) {
-        form.setValue("className", child.className);
-        if (child.board.startsWith("State Board - ")) {
-          form.setValue("board", "State Board");
-          setSelectedStateBoard(child.board.replace("State Board - ", ""));
-        } else {
-          form.setValue("board", child.board);
-          setSelectedStateBoard("");
-        }
-      }
-    }
-  }, [selectedChildId, children, form]);
-
-  const handleChildSelect = (value: string) => {
-    if (value === "__clear__") {
-      setSelectedChildId(null);
-      form.setValue("className", "");
-      form.setValue("board", "");
-      setSelectedStateBoard("");
-      return;
-    }
-    setSelectedChildId(Number(value));
-  };
-
   const [subject, className, board] = form.watch(["subject", "className", "board"]);
 
   const matchingUploads = (allUploads || []).filter((u) => {
@@ -129,7 +94,6 @@ export function WorksheetForm() {
   };
 
   const isStateBoard = board === "State Board";
-  const effectiveBoard = isStateBoard && selectedStateBoard ? `State Board - ${selectedStateBoard}` : board;
 
   const ncertBooks = (board === "CBSE" && className && subject) ? findNcertBooks(className, subject) : [];
 
@@ -147,6 +111,8 @@ export function WorksheetForm() {
   useEffect(() => {
     if (!isStateBoard) {
       setSelectedStateBoard("");
+    } else {
+      setSelectedStateBoard((prev) => prev || "Maharashtra");
     }
   }, [board, isStateBoard]);
 
@@ -165,19 +131,49 @@ export function WorksheetForm() {
       const activeBook = chapterBooks.length === 1 ? chapterBooks[0]?.bookName : selectedBook;
       const boardToSend = isStateBoard && selectedStateBoard ? `State Board - ${selectedStateBoard}` : data.board;
       const hasTextbook = activeBook && (board === "CBSE" || (isStateBoard && selectedStateBoard));
+      let topic = (data.topic ?? "").trim();
+      if (topicTab === "notes" && selectedNoteIds.length > 0 && !topic) {
+        const picks = (allUploads || []).filter((u) => selectedNoteIds.includes(u.id));
+        for (const u of picks) {
+          const label =
+            [u.chapter, u.topic].filter(Boolean).join(" · ") ||
+            u.sourceDescription?.trim() ||
+            u.subject;
+          if (label) {
+            topic = label;
+            break;
+          }
+        }
+        if (!topic) topic = `My notes — ${data.subject}`;
+      }
+      if (topicTab === "topic") {
+        // Manual topic mode: don't auto-derive from notes, and ignore textbook/notes payload fields.
+        topic = (data.topic ?? "").trim();
+      }
       const payload = {
         ...data,
+        topic,
         board: boardToSend,
         ncertBook: (topicTab === "ncert" && hasTextbook) ? activeBook : undefined,
         questionTypes: selectedQuestionTypes.length > 0 ? selectedQuestionTypes : undefined,
         selectedNoteIds: (topicTab === "notes" && selectedNoteIds.length > 0) ? selectedNoteIds : undefined,
+        // In topic mode, we intentionally omit chapter/book/notes context.
+        chapter: topicTab === "topic" ? undefined : data.chapter,
       };
       const res = await apiRequest("POST", "/api/worksheets/generate", payload);
       const result = await res.json();
+
+      console.log("Worksheet API response:", result);
+      console.log("Worksheet ID:", result?.id);
+      if (!result?.id) {
+        console.error("Worksheet ID missing", result);
+        return;
+      }
       toast({
         title: "Success!",
         description: "Your worksheet has been generated successfully.",
       });
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       setLocation(`/worksheet/${result.id}`);
     } catch (error: any) {
       let errorMsg = "An unexpected error occurred.";
@@ -217,57 +213,7 @@ export function WorksheetForm() {
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="p-6 md:p-8 space-y-8">
-          
-          {hasChildren && (
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-foreground/80 flex items-center gap-2">
-                <UserRound className="w-4 h-4 text-primary/70" /> Select Child
-              </label>
-              <div className="flex items-center gap-2">
-                <Select
-                  value={selectedChildId !== null ? String(selectedChildId) : ""}
-                  onValueChange={handleChildSelect}
-                >
-                  <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl flex-1" data-testid="select-child">
-                    <SelectValue placeholder="Select a child to continue" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {children!.map((child) => (
-                      <SelectItem key={child.id} value={String(child.id)} data-testid={`option-child-${child.id}`}>
-                        {child.name} — {child.className}, {child.board}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {isChildLocked && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleChildSelect("__clear__")}
-                    data-testid="button-clear-child"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-              {isChildLocked && (
-                <p className="text-xs text-muted-foreground" data-testid="text-child-locked">
-                  Grade and board are set from the selected child's profile.
-                </p>
-              )}
-              {isFormLocked && (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800" data-testid="text-select-child-prompt">
-                  <Lock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <p className="text-xs text-amber-700 dark:text-amber-300">
-                    Please select a child to unlock the worksheet configuration below.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 ${isFormLocked ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Grade / Class */}
             <FormField
               control={form.control}
@@ -277,7 +223,7 @@ export function WorksheetForm() {
                   <FormLabel className="text-sm font-semibold text-foreground/80 flex items-center gap-2">
                     <BookOpen className="w-4 h-4 text-primary/70" /> Grade Level
                   </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isChildLocked}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-grade">
                         <SelectValue placeholder="Select Grade" />
@@ -314,17 +260,14 @@ export function WorksheetForm() {
                   <FormLabel className="text-sm font-semibold text-foreground/80 flex items-center gap-2">
                     <LayoutList className="w-4 h-4 text-primary/70" /> Curriculum Board
                   </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isChildLocked}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-board">
                         <SelectValue placeholder="Select Board" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Common Core">Common Core</SelectItem>
                       <SelectItem value="CBSE">CBSE</SelectItem>
-                      <SelectItem value="ICSE">ICSE</SelectItem>
-                      <SelectItem value="IGCSE">IGCSE</SelectItem>
                       <SelectItem value="State Board">State Board</SelectItem>
                     </SelectContent>
                   </Select>
@@ -402,28 +345,6 @@ export function WorksheetForm() {
               </div>
             )}
 
-            {/* Chapter */}
-            <FormField
-              control={form.control}
-              name="chapter"
-              render={({ field }) => (
-                <FormItem className="col-span-1 md:col-span-2">
-                  <FormLabel className="text-sm font-semibold text-foreground/80">
-                    Chapter
-                  </FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="e.g. Chapter 5: Life Processes, Unit 2: Algebra" 
-                      className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl px-4"
-                      {...field}
-                      value={field.value || ""} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             {/* Topic */}
             <FormField
               control={form.control}
@@ -431,12 +352,23 @@ export function WorksheetForm() {
               render={({ field }) => (
                 <FormItem className="col-span-1 md:col-span-2">
                   <FormLabel className="text-sm font-semibold text-foreground/80">
-                    Chapter / Topic
+                    NCERT Book / My Notes / Topic
                   </FormLabel>
-                  <Tabs value={topicTab} onValueChange={(v) => setTopicTab(v as typeof topicTab)} className="w-full">
-                    <TabsList className="grid w-full grid-cols-3 mb-4">
-                      <TabsTrigger value="chapter">Chapter</TabsTrigger>
-                      <TabsTrigger value="ncert">NCERT Book</TabsTrigger>
+                  <Tabs
+                    value={topicTab}
+                    onValueChange={(v) => {
+                      const next = v as "ncert" | "notes" | "topic";
+                      setTopicTab(next);
+                      if (next === "topic") {
+                        setSelectedNoteIds([]);
+                        form.setValue("chapter", "");
+                        setSelectedBook("");
+                      }
+                    }}
+                    className="w-full"
+                  >
+                  <TabsList className="grid w-full grid-cols-3 mb-4">
+                      <TabsTrigger value="ncert">NCERT/ State Board Book</TabsTrigger>
                       <TabsTrigger value="notes" className="flex items-center gap-1">
                         <PenLine className="w-3 h-3" />
                         My Notes
@@ -444,19 +376,8 @@ export function WorksheetForm() {
                           <span className="ml-1 w-4 h-4 text-[10px] rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">{matchingUploads.length}</span>
                         )}
                       </TabsTrigger>
+                    <TabsTrigger value="topic">Topic</TabsTrigger>
                     </TabsList>
-
-                    <TabsContent value="chapter">
-                      <FormControl>
-                        <Input
-                          placeholder="e.g. Photosynthesis, Trigonometry, The French Revolution"
-                          className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl px-4"
-                          {...field}
-                          value={field.value || ""}
-                        />
-                      </FormControl>
-                      <FormDescription className="mt-2">Type a specific topic or chapter name for best results.</FormDescription>
-                    </TabsContent>
 
                     <TabsContent value="ncert">
                       {chapterBooks.length > 0 ? (
@@ -557,7 +478,7 @@ export function WorksheetForm() {
                           ) : board !== "CBSE" && !isStateBoard ? (
                             <p>Chapter lists are available for CBSE and State Boards. Select one to browse chapters.</p>
                           ) : (
-                            <p>No chapter list available for {subject} ({className}). Use the "Chapter" tab to enter manually.</p>
+                            <p>No chapter list available for {subject} ({className}). Use the <span className="font-medium text-foreground">My Notes</span> tab with your uploaded content, or try another grade/subject.</p>
                           )}
                         </div>
                       )}
@@ -620,6 +541,21 @@ export function WorksheetForm() {
                         </div>
                       )}
                     </TabsContent>
+
+                    <TabsContent value="topic">
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground">
+                          Enter a topic and we&apos;ll generate questions based on it (no textbook chapters or notes will be used).
+                        </p>
+                        <Input
+                          placeholder="Enter topic (e.g. Photosynthesis, Algebra)"
+                          className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl px-4"
+                          value={field.value || ""}
+                          onChange={(e) => field.onChange(e.target.value)}
+                          data-testid="input-topic"
+                        />
+                      </div>
+                    </TabsContent>
                   </Tabs>
                   <FormMessage />
                 </FormItem>
@@ -664,7 +600,7 @@ export function WorksheetForm() {
                   <FormLabel className="text-sm font-semibold text-foreground/80">
                     Difficulty Level
                   </FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl">
                         <SelectValue placeholder="Select Difficulty" />
@@ -703,56 +639,12 @@ export function WorksheetForm() {
                 </FormItem>
               )}
             />
-
-            {/* Color Mode */}
-            <FormField
-              control={form.control}
-              name="colorMode"
-              render={({ field }) => (
-                <FormItem className="col-span-1 md:col-span-2">
-                  <FormLabel className="text-sm font-semibold text-foreground/80">
-                    Print Mode
-                  </FormLabel>
-                  <div className="grid grid-cols-2 gap-4 mt-2">
-                    <label className={`
-                      flex flex-col items-center justify-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200
-                      ${field.value === 'bw' ? 'border-primary bg-primary/5 shadow-md shadow-primary/10' : 'border-border hover:border-primary/30'}
-                    `}>
-                      <input 
-                        type="radio" 
-                        className="sr-only" 
-                        {...field} 
-                        value="bw" 
-                        checked={field.value === 'bw'}
-                      />
-                      <span className="font-semibold text-foreground mb-1">Black & White</span>
-                      <span className="text-xs text-muted-foreground text-center">Optimized for standard printers</span>
-                    </label>
-                    <label className={`
-                      flex flex-col items-center justify-center p-4 border-2 rounded-xl cursor-pointer transition-all duration-200
-                      ${field.value === 'color' ? 'border-primary bg-primary/5 shadow-md shadow-primary/10' : 'border-border hover:border-primary/30'}
-                    `}>
-                      <input 
-                        type="radio" 
-                        className="sr-only" 
-                        {...field} 
-                        value="color"
-                        checked={field.value === 'color'} 
-                      />
-                      <span className="font-semibold text-foreground mb-1 text-primary">Color Accent</span>
-                      <span className="text-xs text-muted-foreground text-center">For digital or color printing</span>
-                    </label>
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
           </div>
 
-          <div className={`pt-4 ${isFormLocked ? 'opacity-40 pointer-events-none' : ''}`}>
+          <div className="pt-4">
             <Button 
               type="submit" 
-              disabled={isGenerating || isFormLocked}
+              disabled={isGenerating}
               data-testid="button-generate-worksheet"
               className={`w-full h-14 text-lg rounded-xl shadow-lg transition-all duration-300 relative overflow-hidden
                 ${isGenerating
@@ -772,6 +664,9 @@ export function WorksheetForm() {
                 </span>
               )}
             </Button>
+            <div className="mt-3 text-xs text-muted-foreground leading-relaxed">
+              <strong>Disclaimer:</strong> This worksheet is generated by AI based on your uploaded content. While we strive for accuracy, AI can occasionally produce errors or &quot;hallucinations.&quot; Please review all questions and answers for educational accuracy before distributing them to students.
+            </div>
             {isGenerating && (
               <p className="text-center text-sm text-muted-foreground mt-2 animate-pulse" data-testid="text-generating-notice">
                 AI is crafting your worksheet — this takes 10–20 seconds

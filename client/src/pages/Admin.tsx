@@ -13,7 +13,6 @@ import { Shield, Users, FileText, Lock, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 const STORAGE_KEY = "qikws_admin_key";
 
@@ -23,19 +22,11 @@ interface AdminStats {
     id: number;
     email: string;
     name: string;
-    userCategory: string | null;
     plan: string;
     worksheetsGenerated: number;
     createdAt: string | null;
   }[];
   worksheetActivity: { date: string; count: number }[];
-}
-
-function categoryColor(cat: string | null): string {
-  if (cat === "Teacher") return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
-  if (cat === "Parent") return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300";
-  if (cat === "Professional") return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300";
-  return "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
 }
 
 function planColor(plan: string): string {
@@ -48,9 +39,8 @@ export default function Admin() {
   const [inputKey, setInputKey] = useState("");
   const [savedKey, setSavedKey] = useState(() => localStorage.getItem(STORAGE_KEY) || "");
   const [showKey, setShowKey] = useState(false);
-  const [authError, setAuthError] = useState("");
 
-  const { data, isLoading, error, refetch } = useQuery<AdminStats>({
+  const { data, isLoading, error } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats", savedKey],
     queryFn: async () => {
       const res = await fetch("/api/admin/stats", {
@@ -68,7 +58,6 @@ export default function Admin() {
 
   const handleLogin = () => {
     if (!inputKey.trim()) return;
-    setAuthError("");
     localStorage.setItem(STORAGE_KEY, inputKey.trim());
     setSavedKey(inputKey.trim());
   };
@@ -78,12 +67,6 @@ export default function Admin() {
     setSavedKey("");
     setInputKey("");
   };
-
-  const categoryCounts: Record<string, number> = {};
-  (data?.users || []).forEach((u) => {
-    const cat = u.userCategory || "Not specified";
-    categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
-  });
 
   if (!savedKey) {
     return (
@@ -96,9 +79,6 @@ export default function Admin() {
             <h1 className="text-2xl font-display font-bold">Admin Access</h1>
             <p className="text-sm text-muted-foreground mt-1">Enter your admin secret key to continue.</p>
           </div>
-          {authError && (
-            <p className="text-sm text-destructive text-center" data-testid="text-admin-error">{authError}</p>
-          )}
           <div className="relative">
             <Input
               type={showKey ? "text" : "password"}
@@ -191,18 +171,6 @@ export default function Admin() {
               <p className="text-xs text-muted-foreground">Total Users</p>
             </div>
           </Card>
-
-          {Object.entries(categoryCounts).map(([cat, count]) => (
-            <Card key={cat} className="p-5 flex items-center gap-4" data-testid={`stat-cat-${cat}`}>
-              <div className="w-12 h-12 rounded-xl bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center">
-                <FileText className="w-6 h-6 text-pink-600 dark:text-pink-400" />
-              </div>
-              <div>
-                <p className="text-2xl font-display font-bold">{count}</p>
-                <p className="text-xs text-muted-foreground">{cat}</p>
-              </div>
-            </Card>
-          ))}
         </div>
 
         <Card className="p-6" data-testid="chart-worksheet-activity">
@@ -238,7 +206,6 @@ export default function Admin() {
                 <tr className="border-b border-border/50 bg-muted/30">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">#</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Name / Email</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Role</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Plan</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Worksheets</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Joined</th>
@@ -251,11 +218,6 @@ export default function Admin() {
                     <td className="px-4 py-3">
                       <p className="font-medium">{user.name}</p>
                       <p className="text-xs text-muted-foreground">{user.email}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${categoryColor(user.userCategory)}`}>
-                        {user.userCategory || "—"}
-                      </span>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${planColor(user.plan)}`}>

@@ -19,13 +19,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useLogin, useRegister, useUser } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 
@@ -37,7 +30,7 @@ const loginSchema = z.object({
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
-  userCategory: z.string().min(1, "Please select your role"),
+  mobile: z.string().regex(/^[0-9]{10}$/, "Mobile must be exactly 10 digits"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -62,7 +55,7 @@ export default function AuthPage() {
   const registerMutation = useRegister();
 
   useEffect(() => {
-    if (user) setLocation("/dashboard");
+    if (user) setLocation("/new-worksheet");
   }, [user, setLocation]);
 
   const loginForm = useForm<z.infer<typeof loginSchema>>({
@@ -72,7 +65,7 @@ export default function AuthPage() {
 
   const registerForm = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { name: "", email: "", userCategory: "", password: "", confirmPassword: "" },
+    defaultValues: { name: "", email: "", mobile: "", password: "", confirmPassword: "" },
   });
 
   const onLogin = (data: z.infer<typeof loginSchema>) => {
@@ -83,9 +76,9 @@ export default function AuthPage() {
     registerMutation.mutate({
       name: data.name,
       email: data.email,
+      mobile: data.mobile,
       password: data.password,
-      userCategory: data.userCategory,
-    } as any);
+    });
   };
 
   return (
@@ -105,8 +98,13 @@ export default function AuthPage() {
           <div className="flex justify-end mb-2">
             <ThemeToggle />
           </div>
-          <Link href="/" className="inline-flex items-center gap-2 mb-4">
-            <img src={logoImage} alt="Qik Worksheet" className="w-56 h-56 rounded-xl object-contain drop-shadow-lg logo-vibrant" data-testid="logo-image" />
+          <Link href="/" className="inline-flex flex-col sm:flex-row items-center justify-center gap-3 mb-4">
+            <img
+              src={logoImage}
+              alt="Qik Worksheets"
+              className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-contain drop-shadow-lg logo-vibrant"
+              data-testid="logo-image"
+            />
             <span className="text-2xl font-display font-bold text-gradient-primary">Qik Worksheets</span>
           </Link>
         </div>
@@ -161,6 +159,30 @@ export default function AuthPage() {
                       </FormItem>
                     )}
                   />
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-start gap-2">
+                      <input type="checkbox" id="auth-login-agreement" required className="mt-1 shrink-0" data-testid="checkbox-login-agreement" />
+                      <label htmlFor="auth-login-agreement" className="text-sm text-muted-foreground leading-snug">
+                        I agree to the{" "}
+                        <Link href="/privacy" className="text-primary hover:underline">
+                          Privacy Policy
+                        </Link>{" "}
+                        and{" "}
+                        <Link href="/terms" className="text-primary hover:underline">
+                          Terms & Conditions
+                        </Link>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <Link
+                      href="/forgot-password"
+                      className="text-sm text-primary hover:text-primary/80 underline underline-offset-2"
+                      data-testid="link-forgot-password"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
                   <Button
                     type="submit"
                     className="w-full bg-gradient-primary text-white font-semibold rounded-xl hover:opacity-90 transition-opacity"
@@ -249,28 +271,33 @@ export default function AuthPage() {
                       </FormItem>
                     )}
                   />
+
                   <FormField
                     control={registerForm.control}
-                    name="userCategory"
+                    name="mobile"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>I am a</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger data-testid="select-user-category">
-                              <SelectValue placeholder="Select your role" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="Parent">Parent</SelectItem>
-                            <SelectItem value="Teacher">Teacher</SelectItem>
-                            <SelectItem value="Professional">Professional</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <FormLabel>Mobile Number</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="10-digit mobile number"
+                            type="tel"
+                            inputMode="numeric"
+                            autoComplete="tel"
+                            maxLength={10}
+                            data-testid="input-register-mobile"
+                            {...field}
+                            onChange={(e) => {
+                              const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                              field.onChange(digits);
+                            }}
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+
                   <FormField
                     control={registerForm.control}
                     name="password"
@@ -297,6 +324,7 @@ export default function AuthPage() {
                       </FormItem>
                     )}
                   />
+
                   <Button
                     type="submit"
                     className="w-full bg-gradient-primary text-white font-semibold rounded-xl hover:opacity-90 transition-opacity"
@@ -306,6 +334,9 @@ export default function AuthPage() {
                     {registerMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                     Create Account
                   </Button>
+                  <p className="mt-3 text-xs text-muted-foreground text-center">
+                    By creating an account, you agree to our Terms of Service and Privacy Policy.
+                  </p>
                 </form>
               </Form>
 
@@ -358,9 +389,6 @@ export default function AuthPage() {
           </Tabs>
         </Card>
 
-        <p className="text-center text-sm text-muted-foreground mt-6">
-          By continuing, you agree to our Terms of Service and Privacy Policy.
-        </p>
       </motion.div>
     </div>
   );

@@ -11,8 +11,20 @@ import type { Express } from "express";
 import type { User } from "@shared/schema";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
+import { logUserActivity, touchLastLoginAt, touchLastLogoutAt } from "./services/userActivity";
 
 const scryptAsync = promisify(scrypt);
+
+async function ensureUsersMobileNumberColumn(): Promise<void> {
+  try {
+    await pool.query(`
+      ALTER TABLE "users"
+      ADD COLUMN IF NOT EXISTS "mobile_number" text NOT NULL DEFAULT '';
+    `);
+  } catch (err) {
+    console.error("[Auth] Failed to ensure users.mobile_number column:", err);
+  }
+}
 
 async function ensureSessionTable(): Promise<void> {
   try {
@@ -24,9 +36,22 @@ async function ensureSessionTable(): Promise<void> {
         PRIMARY KEY ("sid")
       );
     `);
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
-    `);
+    try {
+      await pool.query(`
+        CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
+      `);
+    } catch (indexErr: any) {
+      // In some local setups the session table may already exist but be owned by a different role.
+      // The app can still run (and sessions can still work) as long as the DB user has normal DML
+      // privileges; failing to create the index should not block startup.
+      if (indexErr?.code !== "42501") {
+        throw indexErr;
+      }
+      console.warn(
+        `[Auth] Skipping session index creation (insufficient privileges). ` +
+          `Fix by changing table owner or granting privileges. Error code: ${indexErr?.code}`,
+      );
+    }
   } catch (err) {
     console.error("[Auth] Failed to ensure session table:", err);
   }
@@ -46,24 +71,57 @@ async function comparePasswords(supplied: string, stored: string): Promise<boole
 
 declare global {
   namespace Express {
-    interface User extends import("@shared/schema").User {}
+    type AppUser = import("@shared/schema").User;
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+    interface User extends AppUser {}
   }
 }
 
 export async function setupAuth(app: Express) {
+  // Ensure new required columns exist for normal signup.
+  await ensureUsersMobileNumberColumn();
   await ensureSessionTable();
 
   const PgStore = connectPg(session);
 
   app.set("trust proxy", 1);
 
-  app.use(
-    session({
-      store: new PgStore({
+  let pgSessionStore:
+    | InstanceType<ReturnType<typeof connectPg>>
+    | undefined = undefined;
+
+  if (process.env.NODE_ENV === "production") {
+    // In prod we require postgres-backed sessions.
+    pgSessionStore = new PgStore({
+      pool,
+      createTableIfMissing: false,
+    });
+  } else {
+    // In dev, fall back to MemoryStore if the DB user can't read/write the session table.
+    try {
+      await pool.query(`SELECT 1 FROM "session" LIMIT 1;`);
+      pgSessionStore = new PgStore({
         pool,
         createTableIfMissing: false,
-      }),
-      secret: process.env.SESSION_SECRET!,
+      });
+    } catch (e: any) {
+      console.warn(
+        `[Auth] Postgres session store disabled for dev (DB permissions). ` +
+          `Falling back to MemoryStore. Error: ${e?.code || e?.message || e}`,
+      );
+    }
+  }
+
+  app.use(
+    session({
+      store: pgSessionStore,
+      secret:
+        process.env.SESSION_SECRET ||
+        (process.env.NODE_ENV !== "production"
+          ? "local-dev-session-secret-change-me"
+          : (() => {
+              throw new Error("SESSION_SECRET is required in production");
+            })()),
       resave: false,
       saveUninitialized: false,
       proxy: true,
@@ -200,7 +258,7 @@ export async function setupAuth(app: Express) {
     "/api/auth/google/callback",
     passport.authenticate("google", { failureRedirect: "/auth?error=google_failed" }),
     (_req, res) => {
-      res.redirect("/dashboard");
+      res.redirect("/new-worksheet");
     }
   );
 
@@ -209,7 +267,7 @@ export async function setupAuth(app: Express) {
     "/api/auth/facebook/callback",
     passport.authenticate("facebook", { failureRedirect: "/auth?error=facebook_failed" }),
     (_req, res) => {
-      res.redirect("/dashboard");
+      res.redirect("/new-worksheet");
     }
   );
 
@@ -222,13 +280,17 @@ export async function setupAuth(app: Express) {
 
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, name, password, userCategory } = req.body;
-      if (!email || !name || !password) {
+      const { email, name, password, mobile } = req.body;
+      if (!email || !name || !password || !mobile) {
         return res.status(400).json({ message: "All fields are required" });
+      }
+      if (typeof mobile !== "string" || !/^[0-9]{10}$/.test(mobile)) {
+        return res.status(400).json({ message: "Mobile number must be exactly 10 digits" });
       }
       if (password.length < 6) {
         return res.status(400).json({ message: "Password must be at least 6 characters" });
       }
+
       const existing = await storage.getUserByEmail(email);
       if (existing) {
         return res.status(400).json({ message: "Email already registered" });
@@ -238,9 +300,9 @@ export async function setupAuth(app: Express) {
         email,
         name,
         password: hashedPassword,
-        userCategory: userCategory || null,
+        mobileNumber: mobile,
       });
-      syncUserToEmailList(email, name, userCategory).catch((e) =>
+      syncUserToEmailList(email, name).catch((e) =>
         console.error("[Auth] Email sync failed:", e)
       );
       req.login(user, (err) => {
@@ -249,8 +311,18 @@ export async function setupAuth(app: Express) {
         return res.status(201).json(safeUser);
       });
     } catch (err) {
-      console.error("Registration error:", err);
-      res.status(500).json({ message: "Registration failed" });
+      const e = err as any;
+      console.error("[Auth] Registration failed:", {
+        message: e?.message,
+        code: e?.code,
+        detail: e?.detail,
+        constraint: e?.constraint,
+        stack: e?.stack,
+      });
+      res.status(500).json({
+        message: "Registration failed",
+        ...(process.env.NODE_ENV !== "production" && e?.message ? { debug: e.message } : {}),
+      });
     }
   });
 
@@ -260,6 +332,28 @@ export async function setupAuth(app: Express) {
       if (!user) return res.status(401).json({ message: info?.message || "Invalid credentials" });
       req.login(user, (err) => {
         if (err) return next(err);
+        // Fire-and-forget: do not block login response on analytics logging.
+        void logUserActivity(user.id, "LOGIN").catch(() => {});
+        void touchLastLoginAt(user.id).catch(() => {});
+        void (async () => {
+          try {
+            const freshUser = await storage.getUser(user.id);
+            console.log("[Login] DB snapshot:", {
+              user: freshUser
+                ? {
+                    id: freshUser.id,
+                    email: freshUser.email,
+                    name: freshUser.name,
+                    plan: freshUser.plan,
+                    worksheetsGenerated: freshUser.worksheetsGenerated,
+                    createdAt: freshUser.createdAt,
+                  }
+                : null,
+            });
+          } catch (e) {
+            console.error("[Login] Failed to fetch DB snapshot:", e);
+          }
+        })();
         const { password: _, ...safeUser } = user;
         return res.json(safeUser);
       });
@@ -267,17 +361,26 @@ export async function setupAuth(app: Express) {
   });
 
   app.post("/api/auth/logout", (req, res) => {
+    const userId = req.user?.id;
+    if (typeof userId === "number") {
+      void logUserActivity(userId, "LOGOUT").catch(() => {});
+      void touchLastLogoutAt(userId).catch(() => {});
+    }
     req.logout((err) => {
       if (err) return res.status(500).json({ message: "Logout failed" });
       res.json({ message: "Logged out successfully" });
     });
   });
 
-  app.get("/api/auth/user", (req, res) => {
+  app.get("/api/auth/user", async (req, res) => {
     if (!req.isAuthenticated() || !req.user) {
       return res.status(401).json({ message: "Not authenticated" });
     }
-    const { password: _, ...safeUser } = req.user;
+    const freshUser = await storage.getUser(req.user.id);
+    if (!freshUser) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    const { password: _, ...safeUser } = freshUser;
     res.json(safeUser);
   });
 }

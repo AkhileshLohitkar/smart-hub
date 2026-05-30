@@ -161,7 +161,7 @@ export default function PaymentSuccess() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.8 }}
         >
-          <Link href="/dashboard">
+          <Link href="/new-worksheet">
             <Button className="bg-gradient-primary text-white rounded-xl font-semibold hover:opacity-90 w-full h-12 text-base shadow-lg" data-testid="button-go-dashboard">
               Start Creating Worksheets <ArrowRight className="w-5 h-5 ml-2" />
             </Button>

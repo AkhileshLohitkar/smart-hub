@@ -33,7 +33,6 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   Camera,
-  Upload,
   Trash2,
   BookOpen,
   Loader2,
@@ -54,15 +53,11 @@ const GRADES = [
   "Nursery", "KG 1", "KG 2",
   "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5",
   "Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10",
-  "High School",
 ];
 
 const BOARDS = [
-  "CBSE", "ICSE", "IGCSE",
+  "CBSE",
   "State Board - Maharashtra",
-  "State Board - Andhra Pradesh",
-  "State Board - Tamil Nadu",
-  "Common Core",
 ];
 
 interface PreviewImage {
@@ -369,11 +364,13 @@ export default function ContentUpload() {
           </div>
         </div>
 
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 mb-6" data-testid="info-banner">
+        <div className="flex items-start gap-3 rounded-xl px-4 py-3 bg-blue-50 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-800 mb-6" data-testid="info-banner">
           <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
           <div className="space-y-1">
-            <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">Only text is saved — your images are never stored</p>
-            <p className="text-xs text-blue-700 dark:text-blue-300">
+            <p className="text-sm font-semibold text-blue-700 dark:text-blue-200">
+              Only text is saved — your images are never stored
+            </p>
+            <p className="text-sm text-blue-600 leading-relaxed dark:text-xs dark:text-blue-300">
               Upload photos of your textbook pages and our AI will read and extract the text for you, or type/paste your notes directly. The saved text is then used when generating worksheets for that topic.
             </p>
           </div>
@@ -563,6 +560,11 @@ export default function ContentUpload() {
           </Card>
         </div>
 
+        <div className="mt-6 mb-6 rounded-xl px-4 py-3 bg-blue-50 border border-blue-200 text-sm text-blue-600 leading-relaxed dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
+          <strong className="font-semibold text-blue-700 dark:text-blue-200">User Content Policy:</strong>{" "}
+          By uploading images, you confirm that you have the legal right to use this content for personal or educational purposes. QikWorksheet is a tool for personal study-aid generation; we do not condone the unauthorized distribution of copyrighted materials.
+        </div>
+
         <div>
           <h2 className="font-display font-bold text-xl mb-4 flex items-center gap-2">
             <FileText className="w-5 h-5 text-primary" />
@@ -611,7 +613,7 @@ export default function ContentUpload() {
                             <Badge variant="secondary" className="text-xs">{upload.board}</Badge>
                             <Badge variant="outline" className="text-xs">{upload.className}</Badge>
                             {upload.topic && <Badge variant="outline" className="text-xs text-primary border-primary/30">{upload.topic}</Badge>}
-                            {upload.pageCount > 0 ? (
+                            {(upload.pageCount ?? 0) > 0 ? (
                               <Badge variant="outline" className="text-xs text-muted-foreground">{upload.pageCount} photo{upload.pageCount !== 1 ? "s" : ""}</Badge>
                             ) : (
                               <Badge variant="outline" className="text-xs text-muted-foreground">Typed notes</Badge>

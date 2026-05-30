@@ -16,12 +16,12 @@ export default function PaymentCancel() {
           No worries — you weren't charged. You can upgrade anytime from the plans page.
         </p>
         <div className="flex flex-col gap-3">
-          <Link href="/#pricing">
+          <Link href="/pricing">
             <Button className="bg-gradient-primary text-white rounded-xl font-semibold hover:opacity-90 w-full" data-testid="button-view-plans">
               View Plans Again
             </Button>
           </Link>
-          <Link href="/dashboard">
+          <Link href="/new-worksheet">
             <Button variant="outline" className="rounded-xl font-semibold w-full" data-testid="button-back-dashboard">
               <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
             </Button>

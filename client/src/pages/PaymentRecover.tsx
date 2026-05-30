@@ -94,7 +94,7 @@ export default function PaymentRecover() {
             <p className="text-sm text-muted-foreground mb-6">
               Logged in as <span className="font-medium">{user.email}</span>
             </p>
-            <Link href="/dashboard">
+            <Link href="/new-worksheet">
               <Button className="bg-gradient-primary text-white w-full rounded-xl h-11">
                 Go to Dashboard
               </Button>
@@ -157,7 +157,7 @@ export default function PaymentRecover() {
             </form>
 
             <div className="mt-6 pt-4 border-t border-border">
-              <Link href="/dashboard">
+              <Link href="/new-worksheet">
                 <button className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-back-dashboard">
                   <ArrowLeft className="w-4 h-4" />
                   Back to Dashboard

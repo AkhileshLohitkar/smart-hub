@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useWorksheet } from "@/hooks/use-worksheets";
 import { useUser } from "@/hooks/use-auth";
 import { WorksheetRender } from "@/components/WorksheetRender";
@@ -14,8 +14,38 @@ import { motion } from "framer-motion";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { api } from "@shared/routes";
 
-const NO_WATERMARK_PLANS = ["no_watermark", "no_watermark_annual"];
+function fixMathSymbols(text: string) {
+  return text
+    .replace(/÷/g, "/")
+    .replace(/×/g, "*")
+    .replace(/−/g, "-")
+    .replace(/√/g, "sqrt")
+    .replace(/π/g, "pi");
+}
+
+function normalizeTextNodes(root: HTMLElement) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node: Node | null = walker.nextNode();
+  while (node) {
+    const t = node.nodeValue;
+    if (t) node.nodeValue = fixMathSymbols(t);
+    node = walker.nextNode();
+  }
+}
+
+function shouldShowWatermark(user: any | null | undefined): boolean {
+  if (!user) return true;
+  const planType = String(user.planType || "").toLowerCase();
+  const planName = String(user.planName || "").toLowerCase();
+  // Free plan explicitly has watermark; paid plans are watermark-free.
+  if (planType === "worksheet" && (planName === "free" || planName === "basic")) return true;
+  if (planType === "worksheet" && planName) return false;
+  // Fallback for legacy plans
+  const legacyNoWatermark = ["no_watermark", "no_watermark_annual"];
+  return !legacyNoWatermark.includes(String(user.plan || ""));
+}
 
 export default function WorksheetView() {
   const params = useParams();
@@ -29,12 +59,19 @@ export default function WorksheetView() {
   const [reviewText, setReviewText] = useState("");
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [contentUploadSuggestOpen, setContentUploadSuggestOpen] = useState(false);
-  const showWatermark = !user || !NO_WATERMARK_PLANS.includes(user.plan);
+  const showWatermark = shouldShowWatermark(user);
   const worksheetRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   useEffect(() => {
-    if (worksheet && worksheet.rating === null) {
+    if (worksheet?.worksheetType === "brain_flex" && id != null) {
+      setLocation(`/brain-flex/${id}`);
+    }
+  }, [worksheet?.worksheetType, id, setLocation]);
+
+  useEffect(() => {
+    if (worksheet && worksheet.rating === null && worksheet.worksheetType !== "brain_flex") {
       setRatingDialogOpen(true);
     }
   }, [worksheet]);
@@ -56,7 +93,7 @@ export default function WorksheetView() {
     },
     onSuccess: (_data, ratingValue) => {
       setRatingDialogOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["/api/worksheets", id] });
+      queryClient.invalidateQueries({ queryKey: [api.worksheets.get.path, id] });
       toast({ title: "Thanks for rating!", description: "Your feedback helps us improve." });
       if (ratingValue <= 3) {
         setTimeout(() => setContentUploadSuggestOpen(true), 700);
@@ -147,7 +184,7 @@ export default function WorksheetView() {
       const element = worksheetRef.current;
 
       const existingWatermarks = element.querySelectorAll('[data-testid="watermark-overlay"]');
-      existingWatermarks.forEach((el: Element) => (el as HTMLElement).style.display = 'none');
+      existingWatermarks.forEach((el: Element) => ((el as HTMLElement).style.display = "none"));
 
       const a4WidthPx = 794;
       const pdf = new jsPDF("p", "mm", "a4");
@@ -179,37 +216,96 @@ export default function WorksheetView() {
 
       const usableHeightMm = pdfHeight - margin * 2;
 
-      const worksheetContent = element.querySelector('#worksheet-content') as HTMLElement;
-      const answerSheet = element.querySelector('#answer-sheet-content') as HTMLElement;
+      const worksheetContent = element.querySelector("#worksheet-content") as HTMLElement;
+      const answerSheet = element.querySelector("#answer-sheet-content") as HTMLElement;
 
       if (worksheetContent) {
-        const wsCanvas = await html2canvas(worksheetContent, {
-          scale: 2, useCORS: true, allowTaint: true, backgroundColor: "#ffffff",
-          windowWidth: a4WidthPx, width: a4WidthPx,
-        });
+        const clone = worksheetContent.cloneNode(true) as HTMLElement;
+        clone.style.position = "fixed";
+        clone.style.left = "-100000px";
+        clone.style.top = "0";
+        clone.style.width = `${a4WidthPx}px`;
+        clone.style.background = "#ffffff";
+        normalizeTextNodes(clone);
+        document.body.appendChild(clone);
+
+        let wsCanvas: HTMLCanvasElement;
+        try {
+          wsCanvas = await html2canvas(clone, {
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: "#ffffff",
+            windowWidth: a4WidthPx,
+            width: a4WidthPx,
+          });
+        } finally {
+          clone.remove();
+        }
         const wsScale = usableWidth / wsCanvas.width;
         await renderBlockToPdf(
-          wsCanvas, pdf, margin, usableWidth, pdfHeight, wsScale, usableHeightMm,
-          watermarkDataUrl, watermarkAspect, true
+          wsCanvas,
+          pdf,
+          margin,
+          usableWidth,
+          pdfHeight,
+          wsScale,
+          usableHeightMm,
+          watermarkDataUrl,
+          watermarkAspect,
+          true
         );
       }
 
       if (answerSheet) {
-        const asCanvas = await html2canvas(answerSheet, {
-          scale: 2, useCORS: true, allowTaint: true, backgroundColor: "#ffffff",
-          windowWidth: a4WidthPx, width: a4WidthPx,
-        });
+        const clone = answerSheet.cloneNode(true) as HTMLElement;
+        clone.style.position = "fixed";
+        clone.style.left = "-100000px";
+        clone.style.top = "0";
+        clone.style.width = `${a4WidthPx}px`;
+        clone.style.background = "#ffffff";
+        normalizeTextNodes(clone);
+        document.body.appendChild(clone);
+
+        let asCanvas: HTMLCanvasElement;
+        try {
+          asCanvas = await html2canvas(clone, {
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: "#ffffff",
+            windowWidth: a4WidthPx,
+            width: a4WidthPx,
+          });
+        } finally {
+          clone.remove();
+        }
         const asScale = usableWidth / asCanvas.width;
         await renderBlockToPdf(
-          asCanvas, pdf, margin, usableWidth, pdfHeight, asScale, usableHeightMm,
-          watermarkDataUrl, watermarkAspect, false
+          asCanvas,
+          pdf,
+          margin,
+          usableWidth,
+          pdfHeight,
+          asScale,
+          usableHeightMm,
+          watermarkDataUrl,
+          watermarkAspect,
+          false
         );
       }
 
-      existingWatermarks.forEach((el: Element) => (el as HTMLElement).style.display = '');
+      existingWatermarks.forEach((el: Element) => ((el as HTMLElement).style.display = ""));
 
       const fileName = `QikWorksheet_${worksheet?.subject}_${worksheet?.topic}_${id}.pdf`;
       pdf.save(fileName.replace(/\s+/g, "_"));
+
+      // Best-effort server-side activity log (download happens on the client).
+      try {
+        await fetch(`/api/worksheets/${id}/download`, { method: "POST" });
+      } catch {
+        // ignore
+      }
 
       toast({ title: "Downloaded!", description: "Your worksheet PDF has been saved." });
     } catch (err) {
@@ -240,7 +336,7 @@ export default function WorksheetView() {
         <div className="bg-card p-8 rounded-2xl shadow-xl max-w-md text-center border border-border">
           <h2 className="text-2xl font-display font-bold text-destructive mb-3">Worksheet Not Found</h2>
           <p className="text-muted-foreground mb-6">We couldn't locate the worksheet you're looking for.</p>
-          <Link href="/dashboard" className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-gradient-primary text-white font-semibold hover:opacity-90 transition-opacity">
+          <Link href="/new-worksheet" className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-gradient-primary text-white font-semibold hover:opacity-90 transition-opacity">
             <ArrowLeft className="w-4 h-4 mr-2" /> Return Home
           </Link>
         </div>
@@ -248,13 +344,16 @@ export default function WorksheetView() {
     );
   }
 
+  const backHref =
+    worksheet.worksheetType === "brain_flex" ? "/history?tab=brain-flex" : "/new-worksheet";
+
   return (
     <div className="min-h-screen bg-muted/20 flex flex-col">
       <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-border/50 shadow-sm sticky top-0 z-50 no-print">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link
-              href="/dashboard"
+              href={backHref}
               className="p-2 -ml-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -262,9 +361,7 @@ export default function WorksheetView() {
             <div className="flex items-center gap-2">
               <img src={logoImage} alt="Qik Worksheet" className="w-32 h-32 rounded-md object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
               <div>
-                <h2 className="font-display font-bold text-sm hidden sm:block">
-                  {worksheet.subject} Worksheet
-                </h2>
+                <h2 className="font-display font-bold text-sm hidden sm:block">{worksheet.subject} Worksheet</h2>
                 <p className="text-xs text-muted-foreground uppercase tracking-wider hidden sm:block">
                   {worksheet.topic} • {worksheet.difficulty}
                 </p>
@@ -292,11 +389,7 @@ export default function WorksheetView() {
               className="bg-gradient-primary text-white rounded-xl font-semibold hover:opacity-90 transition-opacity"
               data-testid="button-download"
             >
-              {isDownloading ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
-              ) : (
-                <Download className="w-4 h-4 mr-1.5" />
-              )}
+              {isDownloading ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Download className="w-4 h-4 mr-1.5" />}
               <span className="hidden sm:inline">Download PDF</span>
             </Button>
           </div>
@@ -313,33 +406,26 @@ export default function WorksheetView() {
             <StarRating rating={userRating} onRate={setUserRating} size="lg" />
           </div>
           <DialogFooter className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setRatingDialogOpen(false)}
-              data-testid="button-skip-rating"
-            >
+            <Button variant="outline" onClick={() => setRatingDialogOpen(false)} data-testid="button-skip-rating">
               Skip
             </Button>
-            <Button
-              onClick={handleSubmitRating}
-              disabled={userRating === 0 || rateMutation.isPending}
-              data-testid="button-submit-rating"
-            >
-              {rateMutation.isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
-              ) : null}
+            <Button onClick={handleSubmitRating} disabled={userRating === 0 || rateMutation.isPending} data-testid="button-submit-rating">
+              {rateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : null}
               Submit Rating
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={reviewDialogOpen} onOpenChange={(open) => {
-        if (!open && user) {
-          sessionStorage.setItem(`review_dismissed_${user.worksheetsGenerated}`, "true");
-        }
-        setReviewDialogOpen(open);
-      }}>
+      <Dialog
+        open={reviewDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && user) {
+            sessionStorage.setItem(`review_dismissed_${user.worksheetsGenerated}`, "true");
+          }
+          setReviewDialogOpen(open);
+        }}
+      >
         <DialogContent data-testid="dialog-review" className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -416,19 +502,27 @@ export default function WorksheetView() {
               </p>
               <ol className="space-y-2 text-xs text-muted-foreground">
                 <li className="flex gap-2.5 items-start">
-                  <span className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">1</span>
+                  <span className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">
+                    1
+                  </span>
                   <span>Open your child's textbook to the chapter you need</span>
                 </li>
                 <li className="flex gap-2.5 items-start">
-                  <span className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">2</span>
+                  <span className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">
+                    2
+                  </span>
                   <span>Take clear photos of each page in bright light (up to 10 pages)</span>
                 </li>
                 <li className="flex gap-2.5 items-start">
-                  <span className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">3</span>
+                  <span className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">
+                    3
+                  </span>
                   <span>Upload them to "My Notes" — our AI reads and saves your exact book content</span>
                 </li>
                 <li className="flex gap-2.5 items-start">
-                  <span className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">4</span>
+                  <span className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 font-bold text-[10px] mt-0.5">
+                    4
+                  </span>
                   <span>Future worksheets for that topic will use your textbook's own words and examples</span>
                 </li>
               </ol>
@@ -439,11 +533,7 @@ export default function WorksheetView() {
           </div>
 
           <DialogFooter className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setContentUploadSuggestOpen(false)}
-              data-testid="button-skip-content-suggest"
-            >
+            <Button variant="outline" onClick={() => setContentUploadSuggestOpen(false)} data-testid="button-skip-content-suggest">
               Maybe Later
             </Button>
             <Link href="/my-notes">

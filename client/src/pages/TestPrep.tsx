@@ -3,8 +3,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
-  Loader2, Sparkles, BookOpen, LayoutList, Settings2, Plus, X,
-  ClipboardList, Users, BookMarked, PenLine, Camera, ChevronDown,
+  Loader2, Sparkles, BookOpen, LayoutList, Plus, X,
+  ClipboardList, Users, PenLine, Camera, ChevronDown,
   ChevronRight, StickyNote, Library, CheckCircle2
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -28,12 +28,11 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation, Link } from "wouter";
+import { useLocation } from "wouter";
 import { useUser, useLogout } from "@/hooks/use-auth";
-import { useChildren } from "@/hooks/use-children";
 import { apiRequest } from "@/lib/queryClient";
 import { STATE_BOARDS, getStateBoardBooks } from "@/lib/stateBoardChapters";
-import { NCERT_CHAPTER_DATA, getSubjectBooks } from "@/lib/ncertChapters";
+import { getSubjectBooks } from "@/lib/ncertChapters";
 import type { ContentUpload } from "@shared/schema";
 
 const testPrepSchema = z.object({
@@ -52,8 +51,6 @@ export default function TestPrep() {
   const [, setLocation] = useLocation();
   const { data: user, isLoading: userLoading } = useUser();
   const logoutMutation = useLogout();
-  const { data: childrenData } = useChildren();
-  const [selectedChildId, setSelectedChildId] = useState<string>("");
   const [topicInput, setTopicInput] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedStateBoard, setSelectedStateBoard] = useState<string>("");
@@ -86,23 +83,6 @@ export default function TestPrep() {
       setLocation("/auth");
     }
   }, [user, userLoading, setLocation]);
-
-  const children = childrenData || [];
-  const selectedChild = children.find(c => c.id.toString() === selectedChildId);
-  const isChildLocked = !!selectedChild;
-
-  useEffect(() => {
-    if (selectedChild) {
-      form.setValue("className", selectedChild.className);
-      if (selectedChild.board.startsWith("State Board - ")) {
-        form.setValue("board", "State Board");
-        setSelectedStateBoard(selectedChild.board.replace("State Board - ", ""));
-      } else {
-        form.setValue("board", selectedChild.board);
-        setSelectedStateBoard("");
-      }
-    }
-  }, [selectedChild, form]);
 
   const watchedBoard = form.watch("board");
   const watchedClass = form.watch("className");
@@ -259,38 +239,6 @@ export default function TestPrep() {
 
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="p-6 md:p-8 space-y-8">
-                {children.length > 0 && (
-                  <div>
-                    <label className="text-sm font-semibold text-foreground/80 flex items-center gap-2 mb-2">
-                      <Users className="w-4 h-4 text-primary/70" /> Select Child
-                    </label>
-                    <Select
-                      value={selectedChildId}
-                      onValueChange={(val) => {
-                        if (val === "__clear__") {
-                          setSelectedChildId("");
-                          form.setValue("className", "");
-                          form.setValue("board", "");
-                        } else {
-                          setSelectedChildId(val);
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-child">
-                        <SelectValue placeholder="Choose a child (optional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__clear__">No child selected</SelectItem>
-                        {children.map(child => (
-                          <SelectItem key={child.id} value={child.id.toString()}>
-                            {child.name} ({child.className} - {child.board})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField
                     control={form.control}
@@ -300,7 +248,7 @@ export default function TestPrep() {
                         <FormLabel className="text-sm font-semibold text-foreground/80 flex items-center gap-2">
                           <BookOpen className="w-4 h-4 text-primary/70" /> Grade Level
                         </FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value} disabled={isChildLocked}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-grade">
                               <SelectValue placeholder="Select Grade" />
@@ -320,7 +268,6 @@ export default function TestPrep() {
                             <SelectItem value="Grade 8">Grade 8</SelectItem>
                             <SelectItem value="Grade 9">Grade 9</SelectItem>
                             <SelectItem value="Grade 10">Grade 10</SelectItem>
-                            <SelectItem value="High School">High School</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -336,17 +283,14 @@ export default function TestPrep() {
                         <FormLabel className="text-sm font-semibold text-foreground/80 flex items-center gap-2">
                           <LayoutList className="w-4 h-4 text-primary/70" /> Curriculum Board
                         </FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value} disabled={isChildLocked}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-board">
                               <SelectValue placeholder="Select Board" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="Common Core">Common Core</SelectItem>
                             <SelectItem value="CBSE">CBSE</SelectItem>
-                            <SelectItem value="ICSE">ICSE</SelectItem>
-                            <SelectItem value="IGCSE">IGCSE</SelectItem>
                             <SelectItem value="State Board">State Board</SelectItem>
                           </SelectContent>
                         </Select>

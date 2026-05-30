@@ -1,16 +1,91 @@
-import type { Express } from "express";
+import type { Express, Response } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
+import { pool } from "./db";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import OpenAI from "openai";
-import { PLAN_CONFIG } from "./planConfig";
-import { getRazorpay, getRazorpayKeyId, verifyRazorpaySignature, verifyWebhookSignature } from "./razorpayClient";
+import { registerPaymentRoutes } from "./payments/routes";
+import { openai } from "./openaiClient";
+import {
+  FREE_WORKSHEET_LIMIT_MESSAGE,
+  hasUserReachedWorksheetLimit,
+  pricingPlans,
+  type BillingCycle,
+  type PlanType,
+} from "./config/pricing";
+import { generateWorksheet } from "./services/openaiService";
+import { logUserActivity } from "./services/userActivity";
+import { db } from "./db";
+import { brainflexWorksheets, userActivityLogs } from "@shared/schema";
+import { desc, eq } from "drizzle-orm";
+import crypto from "node:crypto";
+import { brainFlexContentFromSelection } from "./BrainFlexPuzzle";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+// Best-effort de-duplication across recent generations per user (memory only).
+// Avoids accidental repeats if Math.random collides or requests are retried.
+const recentBrainFlexHashesByUser = new Map<number, string[]>();
+
+function fixMissingOperators(obj: any): any {
+  if (typeof obj === "string") {
+    return obj
+      // Fix missing operators between numbers
+      .replace(/(\d)\s+(\d)/g, "$1 * $2")
+      .replace(/(\d+)\s+(\d+)(?=\s|=)/g, "$1 * $2")
+
+      // Fix 'x' used as multiplication
+      .replace(/(\d)\s*x\s*(\d)/gi, "$1 * $2")
+
+      // Replace unicode math symbols
+      .replace(/×/g, "*")
+      .replace(/÷/g, "/");
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(fixMissingOperators);
+  }
+
+  if (typeof obj === "object" && obj !== null) {
+    const newObj: any = {};
+    for (const key in obj) {
+      newObj[key] = fixMissingOperators(obj[key]);
+    }
+    return newObj;
+  }
+
+  return obj;
+}
+
+function isOpenAiKeyOrAuthError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as {
+    status?: number;
+    code?: string;
+    error?: { code?: string };
+  };
+  if (e.status === 401) return true;
+  if (e.code === "invalid_api_key") return true;
+  if (e.error?.code === "invalid_api_key") return true;
+  return false;
+}
+
+function sendOpenAiConfigError(res: Response): void {
+  res.status(503).json({
+    message:
+      "OpenAI API key is missing or invalid. Set AI_INTEGRATIONS_OPENAI_API_KEY or OPENAI_API_KEY in .env, restart the server, then try again. https://platform.openai.com/account/api-keys",
+  });
+}
+
+function buildBrainFlexResponse(body: {
+  className: string;
+  difficulty: string;
+  puzzleTypeIds: string[];
+}) {
+  return {
+    ...brainFlexContentFromSelection(body.puzzleTypeIds),
+    grade: body.className,
+    difficulty: body.difficulty,
+  };
+}
 
 const statePublisherMap: Record<string, string> = {
   "Maharashtra": "Balbharati (Maharashtra State Bureau of Textbook Production and Curriculum Research)",
@@ -22,6 +97,77 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  app.get("/api/db-check", async (_req, res) => {
+    try {
+      await pool.query("SELECT 1");
+
+      const tables = await pool.query(
+        `
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+        ORDER BY table_name
+        `,
+      );
+
+      return res.json({
+        success: true,
+        message: "Database connected successfully",
+        tables: tables.rows,
+      });
+    } catch (error) {
+      console.error("DB ERROR:", error);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      return res.status(500).json({
+        success: false,
+        message: "Database connection failed",
+        error: message,
+      });
+    }
+  });
+
+  app.get("/api/pricing", (_req, res) => {
+    res.json(pricingPlans);
+  });
+
+  app.post("/api/create-subscription", (req, res) => {
+    const parsed = z
+      .object({
+        planName: z.string().min(1),
+        planType: z.enum(["worksheet"]),
+        billingCycle: z.enum(["monthly", "yearly"]).optional(),
+      })
+      .safeParse(req.body);
+
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Invalid payload" });
+    }
+
+    const { planName, planType, billingCycle } = parsed.data;
+
+    const resolveAmount = (cycle: BillingCycle | undefined): number | null => {
+      const isYearly = cycle === "yearly";
+      if (planName === pricingPlans.free_2.name) return 0;
+      if (planName === pricingPlans.w50.name) return isYearly ? (pricingPlans.w50.yearlyDiscountedPrice ?? pricingPlans.w50.yearlyPrice) : pricingPlans.w50.monthlyPrice;
+      if (planName === pricingPlans.w100.name) return isYearly ? (pricingPlans.w100.yearlyDiscountedPrice ?? pricingPlans.w100.yearlyPrice) : pricingPlans.w100.monthlyPrice;
+      if (planName === pricingPlans.w200.name) return isYearly ? (pricingPlans.w200.yearlyDiscountedPrice ?? pricingPlans.w200.yearlyPrice) : pricingPlans.w200.monthlyPrice;
+      if (planName === pricingPlans.w400.name) return isYearly ? (pricingPlans.w400.yearlyDiscountedPrice ?? pricingPlans.w400.yearlyPrice) : pricingPlans.w400.monthlyPrice;
+      return null;
+    };
+
+    const amount = resolveAmount(billingCycle);
+
+    if (amount === null) {
+      return res.status(400).json({ message: "Unknown plan" });
+    }
+
+    return res.json({
+      planName,
+      planType: planType as PlanType,
+      billingCycle: billingCycle ?? null,
+      amount,
+    });
+  });
 
   app.post(api.worksheets.generate.path, async (req, res) => {
     try {
@@ -38,8 +184,11 @@ export async function registerRoutes(
       const userId = req.user.id;
 
       const user = await storage.getUser(userId);
-      if (user && user.plan === "free" && user.worksheetsGenerated >= 5) {
-        return res.status(403).json({ message: "Free plan limit reached. Please upgrade to continue generating worksheets." });
+
+      // NOTE: Current DB tracks a single worksheetsGenerated counter. Until monthly usage tracking exists,
+      // enforce the Free plan using the existing counter to avoid breaking behavior.
+      if (user && hasUserReachedWorksheetLimit(user)) {
+        return res.status(403).json({ message: FREE_WORKSHEET_LIMIT_MESSAGE });
       }
 
       const isYoungClass = ["Nursery", "KG 1", "KG 2", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5"].includes(input.className);
@@ -113,7 +262,7 @@ Subject: ${input.subject}${textbookLabel}
 Chapter: ${input.chapter || "Not specified"}
 Topic: ${input.topic}
 Difficulty: ${input.difficulty}
-Approximate Number of questions: ${Math.min(input.length, 30)}${requestedTypes}${textbookInstruction}${myNotesContext}
+Approximate Number of questions: ${Math.min(input.length ?? 10, 30)}${requestedTypes}${textbookInstruction}${myNotesContext}
 
 The output must be strictly in JSON format matching this structure:
 {
@@ -163,12 +312,23 @@ IMPORTANT RULES:
 8. For "one_word" type: use "short_answer" as the section type with title indicating "One Word Answer" and answerSpaceLines: 1.
 9. For "application_based" type: use "long_answer" as the section type with title "Application Based Questions". Each question must present a real-world scenario, everyday situation, or mini case-study related to the topic, then ask the student to apply their knowledge to analyze, solve, or explain it. Questions should start with phrases like "Rohit notices that...", "A farmer observes...", "In a science experiment...", "You are given a situation where...". Set answerSpaceLines to 4.
 10. For "identify_sketch" type: use "short_answer" as the section type with title "Identify from Sketch". Each question must describe a simple sketch or diagram in words (e.g., "A sketch shows a plant with arrows pointing to different parts labeled A, B, C, D"), then ask the student to identify or label the parts. Set answerSpaceLines to 2.
-10. Generate a COMPLETE answerKey for ALL questions in ALL sections. The answer field should contain the correct answer text.
-11. Make the worksheet compact and well-organized to fit maximum content on A4 paper.
-12. Ensure questions are strictly aligned with the specified board syllabus, NCERT textbook (if specified), and appropriate for the class level. When an NCERT textbook is specified, ALL questions must come from that specific textbook's chapter content — use the same terminology, definitions, diagrams, and examples as in the textbook.
-13. Maximum number of questions is 30. Do not exceed this limit.
-${isYoungClass ? `14. This is for a YOUNG LEARNER (${input.className}). Include a "graphicEmojis" array with 3-5 fun, relevant emoji characters that match the topic (e.g. animals 🐕🐈, fruits 🍎🍌, shapes 🔵🔺). These will be displayed as decorative elements.
-15. For Nursery, KG 1, and KG 2 classes: Focus on age-appropriate activities like tracing, coloring prompts, simple matching, picture identification, basic counting (1-20), letter recognition, number recognition, and simple patterns. Use very simple, child-friendly language. Keep questions short and visual.` : ''}`;
+11. Use only ASCII math operators in all questions/answers: use +, -, *, / (NOT ×, ÷, or Unicode minus −). Write "sqrt" (NOT √) and "pi" (NOT π).
+
+CRITICAL FORMATTING RULES:
+- Always use "*" for multiplication
+- Always use "/" for division
+- NEVER write numbers like "5 3"
+- ALWAYS write "5 * 3"
+
+Examples:
+Correct: 4 * 5 = 20
+Wrong: 4 5 = 20
+12. Generate a COMPLETE answerKey for ALL questions in ALL sections. The answer field should contain the correct answer text.
+13. Make the worksheet compact and well-organized to fit maximum content on A4 paper.
+14. Ensure questions are strictly aligned with the specified board syllabus, NCERT textbook (if specified), and appropriate for the class level. When an NCERT textbook is specified, ALL questions must come from that specific textbook's chapter content — use the same terminology, definitions, diagrams, and examples as in the textbook.
+15. Maximum number of questions is 30. Do not exceed this limit.
+ ${isYoungClass ? `16. This is for a YOUNG LEARNER (${input.className}). Include a "graphicEmojis" array with 3-5 fun, relevant emoji characters that match the topic (e.g. animals 🐕🐈, fruits 🍎🍌, shapes 🔵🔺). These will be displayed as decorative elements.
+17. For Nursery, KG 1, and KG 2 classes: Focus on age-appropriate activities like tracing, coloring prompts, simple matching, picture identification, basic counting (1-20), letter recognition, number recognition, and simple patterns. Use very simple, child-friendly language. Keep questions short and visual.` : ''}`;
 
       const response = await openai.chat.completions.create({
         model: "gpt-5.1",
@@ -180,9 +340,17 @@ ${isYoungClass ? `14. This is for a YOUNG LEARNER (${input.className}). Include 
       });
 
       const content = JSON.parse(response.choices[0]?.message?.content || "{}");
-      const worksheet = await storage.createWorksheet(input, content, userId);
+      const fixedContent = fixMissingOperators(content);
+
+      const worksheet = await storage.createWorksheet(input, fixedContent, userId);
 
       await storage.incrementWorksheetCount(userId);
+
+      void logUserActivity(userId, "GENERATE_WORKSHEET", worksheet.id, {
+        subject: input.subject,
+        className: input.className,
+        topic: input.topic,
+      }).catch(() => {});
 
       res.status(200).json(worksheet);
     } catch (err) {
@@ -193,7 +361,36 @@ ${isYoungClass ? `14. This is for a YOUNG LEARNER (${input.className}). Include 
           field: err.errors[0].path.join('.'),
         });
       }
+      if (isOpenAiKeyOrAuthError(err)) {
+        return sendOpenAiConfigError(res);
+      }
       res.status(500).json({ message: "Failed to generate worksheet" });
+    }
+  });
+
+  // Simple “prompt → text” worksheet generation endpoint (Responses API).
+  // This is intentionally separate from the structured JSON worksheet generator above.
+  app.post("/api/worksheet/generate", async (req, res) => {
+    try {
+      const parsed = z
+        .object({ 
+          prompt: z.string().min(1, "prompt is required"),
+          model: z.string().min(1).optional(),
+        })
+        .safeParse(req.body);
+
+      if (!parsed.success) {
+        return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid payload" });
+      }
+
+      const result = await generateWorksheet(parsed.data.prompt, { model: parsed.data.model });
+      return res.json({ success: true, data: result });
+    } catch (err) {
+      console.error("Error generating worksheet (simple):", err);
+      if (isOpenAiKeyOrAuthError(err)) {
+        return sendOpenAiConfigError(res);
+      }
+      return res.status(500).json({ message: "Failed to generate worksheet" });
     }
   });
 
@@ -203,6 +400,33 @@ ${isYoungClass ? `14. This is for a YOUNG LEARNER (${input.className}). Include 
       return res.status(404).json({ message: 'Worksheet not found' });
     }
     res.json(worksheet);
+  });
+
+  // Used by the client after it saves a PDF locally (download is client-side).
+  app.post("/api/worksheets/:id/download", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Please log in" });
+      }
+      const worksheetId = Number(req.params.id);
+      if (!Number.isFinite(worksheetId)) {
+        return res.status(400).json({ message: "Invalid worksheet id" });
+      }
+
+      const worksheet = await storage.getWorksheet(worksheetId);
+      if (!worksheet) {
+        return res.status(404).json({ message: "Worksheet not found" });
+      }
+      if (worksheet.userId && worksheet.userId !== req.user.id) {
+        return res.status(403).json({ message: "Not allowed" });
+      }
+
+      void logUserActivity(req.user.id, "DOWNLOAD_WORKSHEET", worksheetId).catch(() => {});
+      return res.json({ success: true });
+    } catch (err) {
+      console.error("Worksheet download log error:", err);
+      return res.status(500).json({ message: "Failed to log download" });
+    }
   });
 
   app.post("/api/worksheets/:id/rate", async (req, res) => {
@@ -271,8 +495,8 @@ ${isYoungClass ? `14. This is for a YOUNG LEARNER (${input.className}). Include 
       }
 
       const user = await storage.getUser(userId);
-      if (user && user.plan === "free" && user.worksheetsGenerated >= 5) {
-        return res.status(403).json({ message: "Free plan limit reached. Please upgrade to continue generating worksheets." });
+      if (user && hasUserReachedWorksheetLimit(user)) {
+        return res.status(403).json({ message: FREE_WORKSHEET_LIMIT_MESSAGE });
       }
 
       const totalMarks = parseInt(input.marksScheme);
@@ -333,6 +557,16 @@ IMPORTANT RULES:
 11. Generate a COMPLETE answerKey for ALL questions.
 12. Ensure questions are aligned with the ${input.board} syllabus for ${input.className}.
 13. Make it look like a proper school examination paper with clear section divisions.
+
+CRITICAL FORMATTING RULES:
+- Always use "*" for multiplication
+- Always use "/" for division
+- NEVER write numbers like "5 3"
+- ALWAYS write "5 * 3"
+
+Examples:
+Correct: 4 * 5 = 20
+Wrong: 4 5 = 20
 ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.board.replace("State Board - ", "")} state board test. All questions MUST be based on the official prescribed textbooks published by ${statePublisherMap[input.board.replace("State Board - ", "")] || "the state board"}. Use actual content, terminology, examples, and exercises from the textbooks. Questions must be answerable by students who have studied these specific textbooks.` : ''}`;
 
       const response = await openai.chat.completions.create({
@@ -345,6 +579,7 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
       });
 
       const content = JSON.parse(response.choices[0]?.message?.content || "{}");
+      const fixedContent = fixMissingOperators(content);
 
       const worksheetInput = {
         className: input.className,
@@ -357,7 +592,7 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
         worksheetType: "test_prep" as const,
       };
 
-      const worksheet = await storage.createWorksheet(worksheetInput, content, userId);
+      const worksheet = await storage.createWorksheet(worksheetInput, fixedContent, userId);
       await storage.incrementWorksheetCount(userId);
 
       res.status(200).json(worksheet);
@@ -369,7 +604,166 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
           field: err.errors[0].path.join('.'),
         });
       }
+      if (isOpenAiKeyOrAuthError(err)) {
+        return sendOpenAiConfigError(res);
+      }
       res.status(500).json({ message: "Failed to generate test paper" });
+    }
+  });
+
+  app.post("/api/brain-flex/save", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Please log in to save Brain-Flex entries" });
+      }
+      const userId = req.user.id;
+      const user = await storage.getUser(userId);
+      if (user && hasUserReachedWorksheetLimit(user)) {
+        return res.status(403).json({ message: FREE_WORKSHEET_LIMIT_MESSAGE });
+      }
+
+      const schema = z.object({
+        className: z.string().min(1),
+        board: z.string().optional().default(""),
+        subject: z.string().optional().default(""),
+        chapter: z.string().optional().default(""),
+        puzzleTypeIds: z.array(z.string()).min(1),
+        difficulty: z.string().min(1),
+      });
+      const body = schema.parse(req.body);
+      console.log("[brain-flex/save] request body:", body);
+
+      const content = buildBrainFlexResponse(body);
+      console.log("Generated Brain-Flex sections:", content.sections);
+      console.log("[brain-flex/save] full content:", content);
+
+      // Create a real worksheet row so the worksheet page can render it
+      const worksheetInput = {
+        className: body.className,
+        board: body.board || "GEN",
+        subject: body.subject || "Brain Flex",
+        topic: content.title,
+        chapter: body.chapter || "",
+        difficulty: body.difficulty,
+        length: content.sections.length,
+        colorMode: "bw" as const,
+        worksheetType: "brain_flex" as const,
+      };
+
+      const worksheet = await storage.createWorksheet(
+        worksheetInput,
+        { instructions: "", ...content },
+        userId,
+      );
+      await storage.incrementWorksheetCount(userId);
+
+      const [inserted] = await db
+        .insert(brainflexWorksheets)
+        .values({
+          userId,
+          className: body.className,
+          board: body.board,
+          subject: body.subject,
+          chapter: body.chapter || "",
+          difficulty: body.difficulty,
+          puzzleTypes: body.puzzleTypeIds,
+          generatedContent: content as Record<string, unknown>,
+        })
+        .returning({ id: brainflexWorksheets.id });
+
+      console.log("[brain-flex/save] DB insert result:", inserted, "worksheet:", { id: worksheet.id });
+
+      return res.status(200).json({
+        id: worksheet.id,
+        type: "brain-flex",
+        content,
+      });
+    } catch (err) {
+      console.error("Error saving Brain-Flex:", err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join("."),
+        });
+      }
+      return res.status(500).json({ message: "Failed to generate worksheet" });
+    }
+  });
+
+  app.post("/api/brain-flex/generate", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user) {
+        return res.status(401).json({ message: "Please log in to generate Brain-Flex worksheets" });
+      }
+      const userId = req.user.id;
+      const user = await storage.getUser(userId);
+      if (user && hasUserReachedWorksheetLimit(user)) {
+        return res.status(403).json({ message: FREE_WORKSHEET_LIMIT_MESSAGE });
+      }
+
+      const schema = z.object({
+        className: z.string().min(1),
+        board: z.string().optional().default(""),
+        subject: z.string().optional().default(""),
+        chapter: z.string().optional().default(""),
+        puzzleTypeIds: z.array(z.string()).min(1),
+        difficulty: z.string().min(1),
+      });
+      const body = schema.parse(req.body);
+      const { className, board, subject, chapter, puzzleTypeIds, difficulty } = body;
+
+      let content: ReturnType<typeof brainFlexContentFromSelection> | undefined;
+
+      // Regenerate if we accidentally repeat a recent generation for this user.
+      const maxAttempts = 10;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const next = brainFlexContentFromSelection(puzzleTypeIds);
+
+        const hash = crypto.createHash("sha256").update(JSON.stringify(next)).digest("hex");
+        const recent = recentBrainFlexHashesByUser.get(userId) ?? [];
+        if (!recent.includes(hash)) {
+          recent.unshift(hash);
+          recentBrainFlexHashesByUser.set(userId, recent.slice(0, 30));
+          content = next;
+          break;
+        }
+      }
+
+      if (!content) {
+        // Extremely unlikely; still return *something* rather than fail hard.
+        content = brainFlexContentFromSelection(puzzleTypeIds);
+      }
+
+      console.log("Generated Brain-Flex sections:", content.sections);
+      console.log("BrainFlex Content:", content);
+
+      const worksheet = await storage.createWorksheet(
+        {
+          className,
+          board,
+          subject,
+          chapter,
+          difficulty,
+          worksheetType: "brain_flex",
+          topic: content.title,
+          length: content.sections.length,
+          colorMode: "bw",
+        },
+        content,
+        userId,
+      );
+      await storage.incrementWorksheetCount(userId);
+
+      return res.json({ id: worksheet.id });
+    } catch (err) {
+      console.error("Error generating Brain-Flex:", err);
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join("."),
+        });
+      }
+      return res.status(500).json({ message: "Failed to generate worksheet" });
     }
   });
 
@@ -381,182 +775,7 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
     res.json(worksheets);
   });
 
-  app.get("/api/children", async (req, res) => {
-    if (!req.isAuthenticated() || !req.user) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    const result = await storage.getChildren(req.user.id);
-    res.json(result);
-  });
-
-  app.post("/api/children", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-      const { insertChildSchema } = await import("@shared/schema");
-      const parsed = insertChildSchema.parse(req.body);
-      const existing = await storage.getChildren(req.user.id);
-      if (existing.length >= req.user.maxChildren) {
-        return res.status(403).json({ message: `Your plan allows a maximum of ${req.user.maxChildren} child profile(s). Please upgrade to add more.` });
-      }
-      const child = await storage.createChild(parsed, req.user.id);
-      res.status(201).json(child);
-    } catch (err) {
-      console.error("Error creating child:", err);
-      if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0].message });
-      }
-      res.status(500).json({ message: "Failed to add child" });
-    }
-  });
-
-  app.delete("/api/children/:id", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-      const deleted = await storage.deleteChild(Number(req.params.id), req.user.id);
-      if (!deleted) {
-        return res.status(404).json({ message: "Child not found" });
-      }
-      res.json({ message: "Child removed successfully" });
-    } catch (err) {
-      res.status(500).json({ message: "Failed to remove child" });
-    }
-  });
-
-  // Razorpay payment routes
-
-  const RAZORPAY_PLANS = [
-    { planKey: "starter_monthly", name: "Starter Monthly", amount: 9900, currency: "INR", period: "monthly", description: "₹99/month, 1 child, unlimited worksheets" },
-    { planKey: "starter_annual", name: "Starter Annual", amount: 99900, currency: "INR", period: "yearly", description: "₹999/year, 1 child, unlimited worksheets" },
-    { planKey: "family_monthly", name: "Family Monthly", amount: 18900, currency: "INR", period: "monthly", description: "₹189/month, 2-3 children, unlimited worksheets" },
-    { planKey: "family_annual", name: "Family Annual", amount: 179900, currency: "INR", period: "yearly", description: "₹1,799/year, 2-3 children, unlimited worksheets" },
-    { planKey: "no_watermark", name: "No Watermark", amount: 34900, currency: "INR", period: "yearly", description: "₹349/year, unlimited children, no watermark" },
-  ];
-
-  app.get("/api/razorpay/key", (_req, res) => {
-    try {
-      const keyId = getRazorpayKeyId();
-      res.json({ keyId });
-    } catch {
-      res.status(500).json({ message: "Razorpay not configured" });
-    }
-  });
-
-  app.get("/api/razorpay/plans", (_req, res) => {
-    res.json({ plans: RAZORPAY_PLANS });
-  });
-
-  app.post("/api/razorpay/create-order", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).json({ message: "Please log in to subscribe" });
-      }
-
-      const { planKey } = req.body;
-      if (!planKey) {
-        return res.status(400).json({ message: "Plan key is required" });
-      }
-
-      const plan = RAZORPAY_PLANS.find(p => p.planKey === planKey);
-      if (!plan) {
-        return res.status(400).json({ message: "Invalid plan" });
-      }
-
-      const razorpay = getRazorpay();
-      const order = await razorpay.orders.create({
-        amount: plan.amount,
-        currency: plan.currency,
-        receipt: `order_${req.user.id}_${Date.now()}`,
-        notes: {
-          userId: String(req.user.id),
-          planKey: plan.planKey,
-        },
-      });
-
-      res.json({
-        orderId: order.id,
-        amount: order.amount,
-        currency: order.currency,
-        planKey: plan.planKey,
-        planName: plan.name,
-      });
-    } catch (err: any) {
-      console.error("Create order error:", err);
-      res.status(500).json({ message: "Failed to create order" });
-    }
-  });
-
-  app.post("/api/razorpay/verify-payment", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-
-      const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-
-      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-        return res.status(400).json({ message: "Missing payment details" });
-      }
-
-      const isValid = verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature);
-      if (!isValid) {
-        return res.status(400).json({ message: "Invalid payment signature" });
-      }
-
-      const razorpay = getRazorpay();
-      const order = await razorpay.orders.fetch(razorpay_order_id);
-
-      const planKey = (order.notes as any)?.planKey;
-      if (!planKey) {
-        return res.status(400).json({ message: "Invalid order: missing plan information" });
-      }
-
-      const plan = RAZORPAY_PLANS.find(p => p.planKey === planKey);
-      if (!plan || Number(plan.amount) !== Number(order.amount)) {
-        return res.status(400).json({ message: "Order amount mismatch" });
-      }
-
-      const config = PLAN_CONFIG[planKey] || { plan: "starter", maxChildren: 1 };
-      const userId = req.user.id;
-
-      const isAnnual = plan?.period === "yearly";
-      const periodEnd = new Date();
-      if (isAnnual) {
-        periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-      } else {
-        periodEnd.setMonth(periodEnd.getMonth() + 1);
-      }
-
-      await storage.updateRazorpayCustomerId(userId, razorpay_payment_id);
-      await storage.updateUserPlan(userId, config.plan, config.maxChildren, periodEnd);
-
-      const updatedUser = await storage.getUser(userId);
-      res.json({ success: true, user: updatedUser });
-    } catch (err: any) {
-      console.error("Verify payment error:", err);
-      res.status(500).json({ message: "Failed to verify payment" });
-    }
-  });
-
-  app.get("/api/razorpay/subscription", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).json({ message: "Not authenticated" });
-      }
-
-      const user = await storage.getUser(req.user.id);
-      res.json({
-        plan: user?.plan || "free",
-        planExpiresAt: user?.planExpiresAt || null,
-        razorpayCustomerId: user?.razorpayCustomerId || null,
-      });
-    } catch {
-      res.json({ plan: "free", planExpiresAt: null });
-    }
-  });
+  registerPaymentRoutes(app);
 
   app.post("/api/content/upload", async (req, res) => {
     try {
@@ -699,129 +918,6 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
     }
   });
 
-  app.post("/api/razorpay/webhook", async (req, res) => {
-    try {
-      const signature = req.headers["x-razorpay-signature"] as string | undefined;
-      const rawBody = (req as any).rawBody as string | undefined;
-
-      if (!signature || !rawBody) {
-        return res.status(400).json({ message: "Missing signature or body" });
-      }
-
-      const isValid = verifyWebhookSignature(rawBody, signature);
-      if (!isValid) {
-        console.error("[Webhook] Invalid Razorpay webhook signature");
-        return res.status(400).json({ message: "Invalid signature" });
-      }
-
-      const event = req.body;
-      const eventName: string = event?.event;
-
-      if (eventName === "payment.captured" || eventName === "order.paid") {
-        const orderId: string =
-          event?.payload?.payment?.entity?.order_id ||
-          event?.payload?.order?.entity?.id;
-
-        if (!orderId) {
-          return res.status(200).json({ status: "ignored - no order id" });
-        }
-
-        const razorpay = getRazorpay();
-        const order = await razorpay.orders.fetch(orderId);
-        const planKey = (order.notes as any)?.planKey;
-        const userId = parseInt((order.notes as any)?.userId || "0", 10);
-
-        if (!planKey || !userId) {
-          console.error(`[Webhook] Missing planKey or userId in order notes for ${orderId}`);
-          return res.status(200).json({ status: "ignored - missing notes" });
-        }
-
-        const plan = RAZORPAY_PLANS.find((p) => p.planKey === planKey);
-        if (!plan) {
-          return res.status(200).json({ status: "ignored - unknown plan" });
-        }
-
-        const config = PLAN_CONFIG[planKey] || { plan: "starter", maxChildren: 1 };
-        const isAnnual = plan.period === "yearly";
-        const periodEnd = new Date();
-        if (isAnnual) {
-          periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-        } else {
-          periodEnd.setMonth(periodEnd.getMonth() + 1);
-        }
-
-        const currentUser = await storage.getUser(userId);
-        if (currentUser && currentUser.plan !== "free" && currentUser.planExpiresAt && new Date(currentUser.planExpiresAt) > new Date()) {
-          console.log(`[Webhook] User ${userId} already has active plan ${currentUser.plan}, skipping duplicate`);
-          return res.status(200).json({ status: "already_upgraded" });
-        }
-
-        const paymentId: string = event?.payload?.payment?.entity?.id || orderId;
-        await storage.updateRazorpayCustomerId(userId, paymentId);
-        await storage.updateUserPlan(userId, config.plan, config.maxChildren, periodEnd);
-        console.log(`[Webhook] Upgraded user ${userId} to plan ${config.plan} via webhook for order ${orderId}`);
-      }
-
-      return res.status(200).json({ status: "ok" });
-    } catch (err) {
-      console.error("[Webhook] Error handling Razorpay webhook:", err);
-      return res.status(500).json({ message: "Webhook processing failed" });
-    }
-  });
-
-  app.post("/api/razorpay/recover-payment", async (req, res) => {
-    try {
-      if (!req.isAuthenticated() || !req.user) {
-        return res.status(401).json({ message: "Please log in to recover your payment" });
-      }
-
-      const { orderId } = req.body;
-      if (!orderId || typeof orderId !== "string") {
-        return res.status(400).json({ message: "Order ID is required" });
-      }
-
-      const razorpay = getRazorpay();
-      let order: any;
-      try {
-        order = await razorpay.orders.fetch(orderId.trim());
-      } catch {
-        return res.status(404).json({ message: "Order not found. Please check your Order ID." });
-      }
-
-      const orderUserId = parseInt((order.notes as any)?.userId || "0", 10);
-      if (orderUserId !== req.user.id) {
-        return res.status(403).json({ message: "This order does not belong to your account." });
-      }
-
-      if (order.status !== "paid") {
-        return res.status(400).json({ message: `Order is not paid yet. Current status: ${order.status}` });
-      }
-
-      const planKey = (order.notes as any)?.planKey;
-      const plan = RAZORPAY_PLANS.find((p) => p.planKey === planKey);
-      if (!plan) {
-        return res.status(400).json({ message: "Could not determine plan from this order." });
-      }
-
-      const config = PLAN_CONFIG[planKey] || { plan: "starter", maxChildren: 1 };
-      const isAnnual = plan.period === "yearly";
-      const periodEnd = new Date();
-      if (isAnnual) {
-        periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-      } else {
-        periodEnd.setMonth(periodEnd.getMonth() + 1);
-      }
-
-      await storage.updateUserPlan(req.user.id, config.plan, config.maxChildren, periodEnd);
-      const updatedUser = await storage.getUser(req.user.id);
-      console.log(`[Recover] User ${req.user.id} recovered plan ${config.plan} for order ${orderId}`);
-      return res.json({ success: true, plan: config.plan, user: updatedUser });
-    } catch (err) {
-      console.error("[Recover] Payment recovery error:", err);
-      return res.status(500).json({ message: "Payment recovery failed. Please contact support." });
-    }
-  });
-
   app.get("/api/admin/stats", async (req, res) => {
     try {
       const adminKey = process.env.ADMIN_SECRET_KEY;
@@ -844,6 +940,35 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
     } catch (err) {
       console.error("Admin stats error:", err);
       res.status(500).json({ message: "Failed to fetch admin stats." });
+    }
+  });
+
+  app.get("/api/admin/user-activity/:userId", async (req, res) => {
+    try {
+      const adminKey = process.env.ADMIN_SECRET_KEY;
+      if (!adminKey) {
+        return res.status(503).json({ message: "Admin functionality not configured." });
+      }
+      const provided = req.headers["x-admin-key"] as string | undefined;
+      if (!provided || provided !== adminKey) {
+        return res.status(401).json({ message: "Invalid admin key." });
+      }
+
+      const userId = Number(req.params.userId);
+      if (!Number.isFinite(userId)) {
+        return res.status(400).json({ message: "Invalid userId" });
+      }
+
+      const rows = await db
+        .select()
+        .from(userActivityLogs)
+        .where(eq(userActivityLogs.userId, userId))
+        .orderBy(desc(userActivityLogs.createdAt));
+
+      return res.json({ userId, logs: rows });
+    } catch (err) {
+      console.error("Admin user activity error:", err);
+      return res.status(500).json({ message: "Failed to fetch user activity." });
     }
   });
 

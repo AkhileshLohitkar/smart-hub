@@ -6,8 +6,6 @@ export interface StateBoardBookInfo {
 
 export const STATE_BOARDS = [
   { value: "Maharashtra", label: "Maharashtra State Board (Balbharati)" },
-  { value: "Andhra Pradesh", label: "Andhra Pradesh State Board (SCERT AP)" },
-  { value: "Tamil Nadu", label: "Tamil Nadu State Board (Samacheer Kalvi)" },
 ] as const;
 
 export const STATE_BOARD_CHAPTER_DATA: Record<string, Record<string, Record<string, StateBoardBookInfo[]>>> = {

@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: smart-edu-hub-db
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: smart_edu
+      POSTGRES_PASSWORD: smart_edu_local
+      POSTGRES_DB: smart_edu_hub
+    volumes:
+      - smart_edu_hub_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smart_edu -d smart_edu_hub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  smart_edu_hub_pgdata:
