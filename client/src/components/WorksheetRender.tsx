@@ -1,7 +1,8 @@
 import { useMemo } from "react";
-import { Worksheet } from "@shared/schema";
+import { Worksheet, type WorksheetWatermark, WATERMARK_MIN_SIZE, WATERMARK_MAX_SIZE } from "@shared/schema";
 import { CheckSquare, Type, ListOrdered, Edit3, Link as LinkIcon, Sparkles } from "lucide-react";
 import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
+import { WorksheetQrCode } from "@/components/WorksheetQrCode";
 
 const ACCENT = {
   text: "text-[#0066FF]",
@@ -55,6 +56,32 @@ interface WorksheetContent {
   graphicEmojis?: string[];
   sections: ContentSection[];
   answerKey?: AnswerKeyEntry[];
+  watermark?: WorksheetWatermark;
+}
+
+type EffectiveWatermark =
+  | { kind: "image"; src: string; size: number }
+  | { kind: "text"; text: string; size: number }
+  | null;
+
+function clampWatermarkSize(size: number | undefined): number {
+  const n = Number(size);
+  if (!Number.isFinite(n)) return WATERMARK_MAX_SIZE;
+  return Math.min(WATERMARK_MAX_SIZE, Math.max(WATERMARK_MIN_SIZE, n));
+}
+
+// Resolve which watermark to show. A configured custom watermark always wins
+// (logo preferred over text); otherwise the default Qik watermark is shown only
+// when allowed by the user's plan (showWatermark).
+function resolveWatermark(content: WorksheetContent, showWatermark: boolean): EffectiveWatermark {
+  const wm = content.watermark;
+  if (wm && wm.mode === "custom") {
+    const size = clampWatermarkSize(wm.size);
+    if (wm.logo) return { kind: "image", src: wm.logo, size };
+    if (wm.text && wm.text.trim()) return { kind: "text", text: wm.text.trim(), size };
+  }
+  if (showWatermark) return { kind: "image", src: logoImage, size: WATERMARK_MAX_SIZE };
+  return null;
 }
 
 const YOUNG_CLASSES = ["Nursery", "KG 1", "KG 2", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5"];
@@ -102,21 +129,35 @@ function cleanText(text: string): string {
   return after;
 }
 
-function AnswerSheet({ content }: { content: WorksheetContent }) {
+function AnswerSheet({
+  content,
+  variant = "embedded",
+}: {
+  content: WorksheetContent;
+  variant?: "embedded" | "standalone";
+}) {
   const hasAnswers = content.answerKey && content.answerKey.length > 0;
   const hasInlineAnswers = content.sections?.some((s) => s.questions.some((q) => q.answer));
 
   if (!hasAnswers && !hasInlineAnswers) return null;
 
+  const isStandalone = variant === "standalone";
+
   return (
     <div
-      className="bg-white text-black font-sans w-full max-w-4xl mx-auto shadow-2xl p-6 md:p-8 rounded-sm print-a4 print:shadow-none print:m-0 print:p-6 mt-4"
-      id="answer-sheet-content"
-      style={{ pageBreakBefore: "always" }}
+      className={
+        isStandalone
+          ? "w-full space-y-4"
+          : "bg-white text-black font-sans w-full max-w-4xl mx-auto shadow-2xl p-6 md:p-8 rounded-sm print-a4 print:shadow-none print:m-0 print:p-6 mt-4"
+      }
+      id={isStandalone ? undefined : "answer-sheet-content"}
+      style={isStandalone ? undefined : { pageBreakBefore: "always" }}
     >
-      <h2 className="text-base font-bold border-b-2 border-black pb-1.5 mb-3 uppercase tracking-wide" data-testid="text-answer-sheet-title">
-        Answer Key
-      </h2>
+      {!isStandalone && (
+        <h2 className="text-base font-bold border-b-2 border-black pb-1.5 mb-3 uppercase tracking-wide" data-testid="text-answer-sheet-title">
+          Answer Key
+        </h2>
+      )}
       <div className="space-y-2">
         {content.sections?.map((section, sIndex) => (
           <div key={sIndex}>
@@ -226,6 +267,11 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
   const isColor = worksheet.colorMode === "color";
   const isYoungClass = YOUNG_CLASSES.includes(worksheet.className);
   const fonts = getFontSizes(isYoungClass);
+  const watermark = resolveWatermark(content, showWatermark);
+  // Screen overlay size (default logo overlay is 500px at 100%).
+  const overlayPx = watermark ? (500 * watermark.size) / 100 : 0;
+  // Print watermark size (default 150mm at 100%).
+  const printMm = watermark ? (150 * watermark.size) / 100 : 0;
 
   const GraphicPlaceholder = ({ graphic }: { graphic: unknown }) => {
     if (!isColor) return null;
@@ -258,8 +304,22 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
 
   return (
     <>
-      {showWatermark && (
-        <img src={logoImage} alt="" className="hidden print-watermark object-contain select-none" draggable={false} />
+      {watermark?.kind === "image" && (
+        <img
+          src={watermark.src}
+          alt=""
+          className="hidden print-watermark object-contain select-none"
+          style={{ ["--print-wm-size" as any]: `${printMm}mm` }}
+          draggable={false}
+        />
+      )}
+      {watermark?.kind === "text" && (
+        <div
+          className="hidden print-watermark-text select-none"
+          style={{ ["--print-wm-font" as any]: `${(96 * watermark.size) / 100}px` }}
+        >
+          {watermark.text}
+        </div>
       )}
       <div
         className="bg-white text-black font-serif w-full max-w-4xl mx-auto min-h-[297mm] shadow-2xl p-6 md:p-10 rounded-sm print-a4 print:shadow-none print:m-0 print:p-6 relative"
@@ -273,14 +333,24 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
             draggable={false}
           />
         </div>
-        {showWatermark && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 print:hidden" data-testid="watermark-overlay">
-            <img
-              src={logoImage}
-              alt="Qik Worksheet"
-              className="w-[500px] h-[500px] object-contain opacity-[0.06] select-none"
-              draggable={false}
-            />
+        {watermark && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden print:hidden" data-testid="watermark-overlay">
+            {watermark.kind === "image" ? (
+              <img
+                src={watermark.src}
+                alt="Watermark"
+                className="object-contain opacity-[0.06] select-none"
+                style={{ width: `${overlayPx}px`, height: `${overlayPx}px` }}
+                draggable={false}
+              />
+            ) : (
+              <span
+                className="font-bold text-black/[0.07] select-none text-center leading-none -rotate-[30deg] break-words"
+                style={{ fontSize: `${(96 * watermark.size) / 100}px`, maxWidth: "90%" }}
+              >
+                {watermark.text}
+              </span>
+            )}
           </div>
         )}
 
@@ -312,7 +382,10 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
               </p>
             </div>
 
-            <div className="shrink-0 flex items-center gap-1">
+            <div className="shrink-0 flex items-start gap-1">
+              {worksheet.id ? (
+                <WorksheetQrCode worksheetId={worksheet.id} className="print:block" />
+              ) : null}
               {isYoungClass && content.graphicEmojis && content.graphicEmojis.length > 0 && (
                 <div className="flex gap-0.5" data-testid="emoji-header">
                   {content.graphicEmojis.slice(0, 3).map((emoji, i) => (
@@ -435,8 +508,8 @@ export function WorksheetRender({ worksheet, showWatermark = true }: WorksheetRe
           Generated by Qik Worksheet • qikworksheet.in  {new Date().toLocaleDateString()}
         </div>
       </div>
-
-      <AnswerSheet content={content} />
     </>
   );
 }
+
+export { AnswerSheet };

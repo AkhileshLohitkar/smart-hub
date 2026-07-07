@@ -36,6 +36,9 @@ export function legacyPlanKeyToNewPlan(planKey: string): LegacyPlanUpdate {
     case "w100_topup":
     case "w200_topup":
     case "w400_topup":
+    case "topup_10":
+    case "topup_20":
+    case "topup_50":
       return fallback;
     case "starter_monthly":
     case "starter_annual":

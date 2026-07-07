@@ -22,7 +22,9 @@ export async function setupVite(server: Server, app: Express) {
       ...viteLogger,
       error: (msg, options) => {
         viteLogger.error(msg, options);
-        process.exit(1);
+        // Do not exit the whole API server on a client compile/HMR error — that causes
+        // browser "Failed to fetch" for every in-flight /api request.
+        console.error("[vite] Client transform error (server keeps running):", msg);
       },
     },
     server: serverOptions,

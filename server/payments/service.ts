@@ -1,7 +1,13 @@
 import { getRazorpay, getRazorpayKeyId, verifyRazorpaySignature } from "../razorpayClient";
 import { storage } from "../storage";
 import { legacyPlanKeyToNewPlan } from "../utils/legacyPlan";
-import { pricingPlans, type BillingCycle } from "../config/pricing";
+import {
+  pricingPlans,
+  userEligibleForTopUp,
+  userEligibleForUniversalTopUp,
+  type BillingCycle,
+  type PaidWorksheetPlanKey,
+} from "../config/pricing";
 import {
   resolveRazorpayPlan,
   type RazorpayPlanDef,
@@ -27,6 +33,24 @@ export async function createPaymentOrder(
   }
   if (plan.amount <= 0) {
     throw new Error("This plan does not require payment");
+  }
+
+  if (plan.kind === "topup") {
+    const user = await storage.getUser(userId);
+    if (plan.universalTopUp) {
+      if (!userEligibleForUniversalTopUp(user)) {
+        throw new Error(
+          "Top-up is available only for active paid subscribers. Subscribe to a plan first.",
+        );
+      }
+    } else {
+      const baseKey = plan.worksheetPlanKey as PaidWorksheetPlanKey;
+      if (!userEligibleForTopUp(user, baseKey)) {
+        throw new Error(
+          `Top-up is available only for active ${pricingPlans[baseKey].name} subscribers. Subscribe to that plan first.`,
+        );
+      }
+    }
   }
 
   const razorpay = getRazorpay();
@@ -88,6 +112,15 @@ export async function activatePaidPlanFromRazorpay(
   razorpayPaymentId: string,
   razorpayOrderId: string,
 ) {
+  if (plan.kind === "topup") {
+    await storage.addTopUpWorksheets(userId, plan.worksheetsIncluded);
+    await storage.updatePaymentByOrderId(razorpayOrderId, {
+      razorpayPaymentId,
+      status: "captured",
+    });
+    return;
+  }
+
   const legacy = legacyPlanKeyToNewPlan(plan.planKey);
   const isAnnual = plan.period === "yearly";
   const periodEnd = new Date();

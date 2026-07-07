@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import type { UserRole } from "@shared/schema";
 
 export function useUser() {
   return useQuery({
@@ -51,6 +52,7 @@ export function useRegister() {
       name: string;
       password: string;
       mobile?: string;
+      role: UserRole;
     }) => {
       const res = await apiRequest("POST", "/api/auth/register", data);
       return res.json();

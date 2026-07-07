@@ -85,7 +85,7 @@ export default function BrainFlexPage() {
   const backHref = "/history?tab=brain-flex";
 
   return (
-    <div className="min-h-screen bg-muted/20 flex flex-col">
+    <div className="min-h-screen bg-muted/20 flex flex-col brain-flex-print-root">
       <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-border/50 shadow-sm sticky top-0 z-50 no-print">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -122,7 +122,7 @@ export default function BrainFlexPage() {
         </div>
       </div>
 
-      <main className="flex-1 py-10 px-4 sm:px-8 overflow-y-auto print:p-0 print:overflow-visible">
+      <main className="flex-1 py-10 px-4 sm:px-8 overflow-y-auto print:p-0 print:py-0 print:overflow-visible">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

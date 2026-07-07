@@ -30,7 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useUser, useLogout } from "@/hooks/use-auth";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { STATE_BOARDS, getStateBoardBooks } from "@/lib/stateBoardChapters";
 import { getSubjectBooks } from "@/lib/ncertChapters";
 import type { ContentUpload } from "@shared/schema";
@@ -184,6 +184,7 @@ export default function TestPrep() {
         title: "Test Paper Generated",
         description: "Your test paper has been created successfully.",
       });
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       setLocation(`/worksheet/${result.id}`);
     } catch (error: any) {
       let errorMsg = "An unexpected error occurred.";

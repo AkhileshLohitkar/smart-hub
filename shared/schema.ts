@@ -2,12 +2,16 @@ import { pgTable, text, serial, integer, json, timestamp, boolean, jsonb, index 
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const USER_ROLES = ["Student", "Parent", "Teacher", "Professional"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   email: text("email").notNull().unique(),
   password: text("password").notNull().default(""),
   name: text("name").notNull(),
   mobileNumber: text("mobile_number").notNull().default(""),
+  role: text("role"),
   userCategory: text("user_category"),
   googleId: text("google_id"),
   facebookId: text("facebook_id"),
@@ -19,6 +23,7 @@ export const users = pgTable("users", {
   studentCount: integer("student_count"),
   planExpiresAt: timestamp("plan_expires_at"),
   worksheetsGenerated: integer("worksheets_generated").notNull().default(0),
+  topUpWorksheetsBalance: integer("top_up_worksheets_balance").notNull().default(0),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   razorpayCustomerId: text("razorpay_customer_id"),
@@ -139,6 +144,23 @@ export const userActivityLogs = pgTable(
   }),
 );
 
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (t) => ({
+    userIdIdx: index("password_reset_tokens_user_id_idx").on(t.userId),
+    expiresAtIdx: index("password_reset_tokens_expires_at_idx").on(t.expiresAt),
+  }),
+);
+
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -163,7 +185,18 @@ export const loginSchema = z.object({
 export const registerSchema = z.object({
   email: z.string().email(),
   name: z.string().min(2),
+  role: z.enum(USER_ROLES, { message: "Please select your role." }),
   mobile: z.string().regex(/^[0-9]{10}$/, "Mobile number must be exactly 10 digits"),
+  password: z.string().min(6),
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  email: z.string().email(),
+  otp: z.string().regex(/^[0-9]{6}$/, "OTP must be 6 digits"),
   password: z.string().min(6),
 });
 
@@ -171,6 +204,34 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Worksheet = typeof worksheets.$inferSelect;
 export type InsertWorksheet = z.infer<typeof insertWorksheetSchema>;
+
+// Worksheet watermark settings (stored inside the worksheet `content` JSON, so no
+// schema migration is required). `mode: "default"` preserves the existing Qik
+// Worksheets watermark behaviour exactly.
+export const WATERMARK_MIN_SIZE = 25;
+export const WATERMARK_MAX_SIZE = 100;
+
+export type WorksheetWatermark = {
+  mode: "default" | "custom";
+  text?: string;
+  logo?: string; // data URL (PNG/JPG/JPEG/SVG) for a custom logo watermark
+  size: number; // percentage between WATERMARK_MIN_SIZE and WATERMARK_MAX_SIZE
+};
+
+export function normalizeWatermark(input: unknown): WorksheetWatermark | null {
+  if (!input || typeof input !== "object") return null;
+  const raw = input as Record<string, unknown>;
+  if (raw.mode !== "custom") return null;
+  const text = typeof raw.text === "string" ? raw.text.trim().slice(0, 120) : "";
+  const logo = typeof raw.logo === "string" ? raw.logo : "";
+  const hasLogo = logo.startsWith("data:image/");
+  if (!text && !hasLogo) return null;
+  const rawSize = Number(raw.size);
+  const size = Number.isFinite(rawSize)
+    ? Math.min(WATERMARK_MAX_SIZE, Math.max(WATERMARK_MIN_SIZE, Math.round(rawSize)))
+    : WATERMARK_MAX_SIZE;
+  return { mode: "custom", text, logo: hasLogo ? logo : "", size };
+}
 
 export type GenerateWorksheetRequest = InsertWorksheet;
 export type WorksheetResponse = Worksheet;

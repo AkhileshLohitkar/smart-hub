@@ -33,6 +33,16 @@ export const api = {
         404: errorSchemas.notFound,
       }
     }
+  },
+  answerKey: {
+    get: {
+      method: 'GET' as const,
+      path: '/api/answer-key/:id' as const,
+      responses: {
+        200: z.custom<typeof worksheets.$inferSelect>(),
+        404: errorSchemas.notFound,
+      }
+    }
   }
 };
 

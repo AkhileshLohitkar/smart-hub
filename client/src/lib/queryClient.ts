@@ -12,12 +12,29 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const res = await fetch(url, {
-    method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
-  });
+  if (process.env.NODE_ENV === "development") {
+    const payloadBytes = data ? JSON.stringify(data).length : 0;
+    console.debug("[apiRequest]", method, url, payloadBytes ? { payloadBytes } : {});
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: data ? { "Content-Type": "application/json" } : {},
+      body: data ? JSON.stringify(data) : undefined,
+      credentials: "include",
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[apiRequest] Network error:", { method, url, message, err });
+    if (/failed to fetch|networkerror|load failed/i.test(message)) {
+      throw new Error(
+        "NETWORK: Cannot reach the server. Start the app from Smart-Edu-Hub\\Smart-Edu-Hub with npm run dev:local and open the URL shown in the terminal (usually http://localhost:5000).",
+      );
+    }
+    throw err instanceof Error ? err : new Error(message);
+  }
 
   await throwIfResNotOk(res);
   return res;

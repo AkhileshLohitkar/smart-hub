@@ -5,6 +5,7 @@ import { storage } from "../storage";
 import {
   activateFreePlan,
   activateFromPaidOrder,
+  activatePaidPlanFromRazorpay,
   createPaymentOrder,
   verifyAndActivatePayment,
 } from "./service";
@@ -171,6 +172,13 @@ export function registerPaymentRoutes(app: Express) {
           return res.status(200).json({ status: "ignored - unknown plan" });
         }
 
+        if (plan.kind === "topup") {
+          const paymentId: string = event?.payload?.payment?.entity?.id || orderId;
+          await activatePaidPlanFromRazorpay(userId, plan, paymentId, orderId);
+          console.log(`[Webhook] Top-up applied for user ${userId} (+${plan.worksheetsIncluded} worksheets)`);
+          return res.status(200).json({ status: "ok" });
+        }
+
         const currentUser = await storage.getUser(userId);
         if (
           currentUser &&
@@ -182,28 +190,8 @@ export function registerPaymentRoutes(app: Express) {
         }
 
         const paymentId: string = event?.payload?.payment?.entity?.id || orderId;
-        const legacy = legacyPlanKeyToNewPlan(planKey);
-        const isAnnual = plan.period === "yearly";
-        const periodEnd = new Date();
-        if (isAnnual) {
-          periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-        } else {
-          periodEnd.setMonth(periodEnd.getMonth() + 1);
-        }
-
-        await storage.updateRazorpayCustomerId(userId, paymentId);
-        await storage.updateUserPlan(userId, legacy.plan, periodEnd);
-        await storage.updateUserSubscriptionFields(userId, {
-          planType: legacy.planType,
-          planName: legacy.planName,
-          billingCycle: legacy.billingCycle,
-        });
-        await storage.updatePaymentByOrderId(orderId, {
-          razorpayPaymentId: paymentId,
-          status: "captured",
-        });
-
-        console.log(`[Webhook] Upgraded user ${userId} to ${legacy.planName} (${orderId})`);
+        await activatePaidPlanFromRazorpay(userId, plan, paymentId, orderId);
+        console.log(`[Webhook] Upgraded user ${userId} (${orderId})`);
       }
 
       return res.status(200).json({ status: "ok" });

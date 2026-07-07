@@ -5,25 +5,84 @@ import { pool } from "./db";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import { registerPaymentRoutes } from "./payments/routes";
+import { registerQuestionPaperRoutes } from "./questionPaperRoutes";
 import { openai } from "./openaiClient";
+import { buildPricingApiPayload } from "@shared/pricing";
 import {
-  FREE_WORKSHEET_LIMIT_MESSAGE,
-  hasUserReachedWorksheetLimit,
   pricingPlans,
   type BillingCycle,
   type PlanType,
 } from "./config/pricing";
+import { ensureWorksheetQuota, recordWorksheetGeneration } from "./services/worksheetQuota";
 import { generateWorksheet } from "./services/openaiService";
 import { logUserActivity } from "./services/userActivity";
 import { db } from "./db";
-import { brainflexWorksheets, userActivityLogs } from "@shared/schema";
+import { brainflexWorksheets, userActivityLogs, normalizeWatermark } from "@shared/schema";
 import { desc, eq } from "drizzle-orm";
 import crypto from "node:crypto";
-import { brainFlexContentFromSelection } from "./BrainFlexPuzzle";
+import { brainFlexContentFromSelection, extractBrainFlexUsedWords, extractBrainFlexUsedRiddles, extractBrainFlexUsedBrainTeasers } from "./BrainFlexPuzzle";
+import type { BrainFlexContext } from "./utils/brainflexContext";
+import {
+  BRAIN_FLEX_RESTRICTED_SUBJECT_MESSAGE,
+  isBrainFlexRestrictedSubject,
+} from "@shared/brainFlexRestrictedSubjects";
+import { hasAnswerKeyInContent, countAnswerKeyEntries } from "@shared/answerKey";
+import { getAnswerKeyPath } from "@shared/answerKeyUrl";
+import { logAnswerKeySaved } from "./utils/answerKeyLog";
+
+const BRAIN_FLEX_HISTORY_WORKSHEETS = 20;
 
 // Best-effort de-duplication across recent generations per user (memory only).
-// Avoids accidental repeats if Math.random collides or requests are retried.
 const recentBrainFlexHashesByUser = new Map<number, string[]>();
+const recentBrainFlexWordsByUser = new Map<number, string[]>();
+const recentBrainFlexRiddlesByUser = new Map<number, string[]>();
+const recentBrainFlexTeasersByUser = new Map<number, string[]>();
+
+function makeBrainFlexContext(
+  body: { board?: string; className?: string; subject?: string; chapter?: string },
+  userId?: number,
+): BrainFlexContext {
+  return {
+    board: body.board,
+    grade: body.className,
+    subject: body.subject,
+    topic: body.chapter,
+    excludeWords: userId != null ? (recentBrainFlexWordsByUser.get(userId) ?? []) : [],
+    excludeRiddles: userId != null ? (recentBrainFlexRiddlesByUser.get(userId) ?? []) : [],
+    excludeBrainTeasers: userId != null ? (recentBrainFlexTeasersByUser.get(userId) ?? []) : [],
+  };
+}
+
+function recordBrainFlexGeneration(
+  userId: number,
+  content: Awaited<ReturnType<typeof brainFlexContentFromSelection>>,
+) {
+  const hash = crypto.createHash("sha256").update(JSON.stringify(content)).digest("hex");
+  const recent = recentBrainFlexHashesByUser.get(userId) ?? [];
+  recent.unshift(hash);
+  recentBrainFlexHashesByUser.set(userId, recent.slice(0, BRAIN_FLEX_HISTORY_WORKSHEETS));
+
+  const words = extractBrainFlexUsedWords(content);
+  const recentWords = recentBrainFlexWordsByUser.get(userId) ?? [];
+  recentBrainFlexWordsByUser.set(
+    userId,
+    [...words, ...recentWords].slice(0, BRAIN_FLEX_HISTORY_WORKSHEETS * 8),
+  );
+
+  const riddles = extractBrainFlexUsedRiddles(content);
+  const recentRiddles = recentBrainFlexRiddlesByUser.get(userId) ?? [];
+  recentBrainFlexRiddlesByUser.set(
+    userId,
+    [...riddles, ...recentRiddles].slice(0, BRAIN_FLEX_HISTORY_WORKSHEETS * 3),
+  );
+
+  const teasers = extractBrainFlexUsedBrainTeasers(content);
+  const recentTeasers = recentBrainFlexTeasersByUser.get(userId) ?? [];
+  recentBrainFlexTeasersByUser.set(
+    userId,
+    [...teasers, ...recentTeasers].slice(0, BRAIN_FLEX_HISTORY_WORKSHEETS * 3),
+  );
+}
 
 function fixMissingOperators(obj: any): any {
   if (typeof obj === "string") {
@@ -75,16 +134,23 @@ function sendOpenAiConfigError(res: Response): void {
   });
 }
 
-function buildBrainFlexResponse(body: {
-  className: string;
-  difficulty: string;
-  puzzleTypeIds: string[];
-}) {
-  return {
-    ...brainFlexContentFromSelection(body.puzzleTypeIds),
+function buildBrainFlexResponse(
+  body: {
+    className: string;
+    board?: string;
+    difficulty: string;
+    puzzleTypeIds: string[];
+    subject?: string;
+    chapter?: string;
+  },
+  userId?: number,
+) {
+  const ctx = makeBrainFlexContext(body, userId);
+  return brainFlexContentFromSelection(body.puzzleTypeIds, ctx).then((content) => ({
+    ...content,
     grade: body.className,
     difficulty: body.difficulty,
-  };
+  }));
 }
 
 const statePublisherMap: Record<string, string> = {
@@ -127,7 +193,7 @@ export async function registerRoutes(
   });
 
   app.get("/api/pricing", (_req, res) => {
-    res.json(pricingPlans);
+    res.json(buildPricingApiPayload());
   });
 
   app.post("/api/create-subscription", (req, res) => {
@@ -170,8 +236,22 @@ export async function registerRoutes(
   });
 
   app.post(api.worksheets.generate.path, async (req, res) => {
+    const reqId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const logStage = (stage: string, extra?: Record<string, unknown>) => {
+      console.log(`[worksheet.generate:${reqId}] ${stage}`, extra ?? "");
+    };
+
     try {
+      logStage("request received", {
+        userId: req.isAuthenticated?.() ? req.user?.id : null,
+        board: req.body?.board,
+        className: req.body?.className,
+        subject: req.body?.subject,
+        topic: req.body?.topic,
+      });
+
       if (!req.isAuthenticated() || !req.user) {
+        logStage("auth failed");
         return res.status(401).json({ message: "Please log in to generate worksheets" });
       }
 
@@ -179,16 +259,23 @@ export async function registerRoutes(
       const questionTypes: string[] = rawBody.questionTypes || [];
       const ncertBook: string | undefined = rawBody.ncertBook;
       const selectedNoteIds: number[] = Array.isArray(rawBody.selectedNoteIds) ? rawBody.selectedNoteIds.map(Number).filter(Boolean) : [];
-      const { questionTypes: _qt, ncertBook: _nb, selectedNoteIds: _sni, ...worksheetBody } = rawBody;
+      const watermark = normalizeWatermark(rawBody.watermark);
+      const { questionTypes: _qt, ncertBook: _nb, selectedNoteIds: _sni, watermark: _wm, ...worksheetBody } = rawBody;
       const input = api.worksheets.generate.input.parse(worksheetBody);
       const userId = req.user.id;
+      logStage("validation completed", { userId, board: input.board, length: input.length });
 
-      const user = await storage.getUser(userId);
+      if (input.board === "Other") {
+        logStage("validation failed: other board name missing");
+        return res.status(400).json({
+          message: "Enter a board name",
+          field: "board",
+        });
+      }
 
-      // NOTE: Current DB tracks a single worksheetsGenerated counter. Until monthly usage tracking exists,
-      // enforce the Free plan using the existing counter to avoid breaking behavior.
-      if (user && hasUserReachedWorksheetLimit(user)) {
-        return res.status(403).json({ message: FREE_WORKSHEET_LIMIT_MESSAGE });
+      const quotaErr = await ensureWorksheetQuota(userId);
+      if (quotaErr) {
+        return res.status(quotaErr.status).json({ message: quotaErr.message });
       }
 
       const isYoungClass = ["Nursery", "KG 1", "KG 2", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5"].includes(input.className);
@@ -330,6 +417,7 @@ Wrong: 4 5 = 20
  ${isYoungClass ? `16. This is for a YOUNG LEARNER (${input.className}). Include a "graphicEmojis" array with 3-5 fun, relevant emoji characters that match the topic (e.g. animals 🐕🐈, fruits 🍎🍌, shapes 🔵🔺). These will be displayed as decorative elements.
 17. For Nursery, KG 1, and KG 2 classes: Focus on age-appropriate activities like tracing, coloring prompts, simple matching, picture identification, basic counting (1-20), letter recognition, number recognition, and simple patterns. Use very simple, child-friendly language. Keep questions short and visual.` : ''}`;
 
+      logStage("openai request started", { model: "gpt-5.1", promptChars: prompt.length });
       const response = await openai.chat.completions.create({
         model: "gpt-5.1",
         messages: [
@@ -338,13 +426,28 @@ Wrong: 4 5 = 20
         ],
         response_format: { type: "json_object" },
       });
+      logStage("openai response received", {
+        finishReason: response.choices[0]?.finish_reason,
+        contentChars: response.choices[0]?.message?.content?.length ?? 0,
+      });
 
       const content = JSON.parse(response.choices[0]?.message?.content || "{}");
       const fixedContent = fixMissingOperators(content);
 
-      const worksheet = await storage.createWorksheet(input, fixedContent, userId);
+      // Attach custom watermark config (stored inside content JSON). When absent,
+      // the default Qik Worksheets watermark behaviour is preserved unchanged.
+      if (watermark && fixedContent && typeof fixedContent === "object") {
+        fixedContent.watermark = watermark;
+      }
 
-      await storage.incrementWorksheetCount(userId);
+      logStage("saving worksheet to database");
+      const worksheet = await storage.createWorksheet(input, fixedContent, userId);
+      logAnswerKeySaved(worksheet, "worksheets/generate");
+
+      const recordErr = await recordWorksheetGeneration(userId, worksheet.id);
+      if (recordErr) {
+        return res.status(recordErr.status).json({ message: recordErr.message });
+      }
 
       void logUserActivity(userId, "GENERATE_WORKSHEET", worksheet.id, {
         subject: input.subject,
@@ -352,9 +455,10 @@ Wrong: 4 5 = 20
         topic: input.topic,
       }).catch(() => {});
 
+      logStage("response sent", { worksheetId: worksheet.id });
       res.status(200).json(worksheet);
     } catch (err) {
-      console.error("Error generating worksheet:", err);
+      console.error(`[worksheet.generate:${reqId}] error`, err);
       if (err instanceof z.ZodError) {
         return res.status(400).json({
           message: err.errors[0].message,
@@ -399,6 +503,47 @@ Wrong: 4 5 = 20
     if (!worksheet) {
       return res.status(404).json({ message: 'Worksheet not found' });
     }
+    res.json(worksheet);
+  });
+
+  app.get(api.answerKey.get.path, async (req, res) => {
+    const worksheetId = Number(req.params.id);
+    const apiUrl = `/api/answer-key/${req.params.id}`;
+
+    if (!Number.isFinite(worksheetId)) {
+      console.warn("[answer-key] lookup invalid id", { rawId: req.params.id, apiUrl });
+      return res.status(400).json({ message: "Invalid worksheet id" });
+    }
+
+    const worksheet = await storage.getWorksheet(worksheetId);
+    const hasKey = worksheet
+      ? hasAnswerKeyInContent(worksheet.content, worksheet.worksheetType)
+      : false;
+    const entryCount = worksheet
+      ? countAnswerKeyEntries(worksheet.content, worksheet.worksheetType)
+      : 0;
+
+    console.log("[answer-key] lookup", {
+      worksheetId,
+      apiUrl,
+      qrPath: getAnswerKeyPath(worksheetId),
+      found: Boolean(worksheet),
+      hasAnswerKey: hasKey,
+      answerKeyEntryCount: entryCount,
+      worksheetType: worksheet?.worksheetType ?? null,
+      serialNumber: worksheet?.serialNumber ?? null,
+    });
+
+    if (!worksheet) {
+      return res.status(404).json({ message: "Answer key not found" });
+    }
+
+    if (!hasKey) {
+      console.warn(
+        `[answer-key] worksheet ${worksheetId} exists but has no answer key content in DB`,
+      );
+    }
+
     res.json(worksheet);
   });
 
@@ -494,9 +639,9 @@ Wrong: 4 5 = 20
         }
       }
 
-      const user = await storage.getUser(userId);
-      if (user && hasUserReachedWorksheetLimit(user)) {
-        return res.status(403).json({ message: FREE_WORKSHEET_LIMIT_MESSAGE });
+      const quotaErr = await ensureWorksheetQuota(userId);
+      if (quotaErr) {
+        return res.status(quotaErr.status).json({ message: quotaErr.message });
       }
 
       const totalMarks = parseInt(input.marksScheme);
@@ -593,7 +738,11 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
       };
 
       const worksheet = await storage.createWorksheet(worksheetInput, fixedContent, userId);
-      await storage.incrementWorksheetCount(userId);
+      logAnswerKeySaved(worksheet, "test-prep/generate");
+      const recordErr = await recordWorksheetGeneration(userId, worksheet.id);
+      if (recordErr) {
+        return res.status(recordErr.status).json({ message: recordErr.message });
+      }
 
       res.status(200).json(worksheet);
     } catch (err) {
@@ -617,9 +766,9 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
         return res.status(401).json({ message: "Please log in to save Brain-Flex entries" });
       }
       const userId = req.user.id;
-      const user = await storage.getUser(userId);
-      if (user && hasUserReachedWorksheetLimit(user)) {
-        return res.status(403).json({ message: FREE_WORKSHEET_LIMIT_MESSAGE });
+      const quotaErr = await ensureWorksheetQuota(userId);
+      if (quotaErr) {
+        return res.status(quotaErr.status).json({ message: quotaErr.message });
       }
 
       const schema = z.object({
@@ -631,9 +780,13 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
         difficulty: z.string().min(1),
       });
       const body = schema.parse(req.body);
+      if (isBrainFlexRestrictedSubject(body.subject)) {
+        return res.status(403).json({ message: BRAIN_FLEX_RESTRICTED_SUBJECT_MESSAGE });
+      }
       console.log("[brain-flex/save] request body:", body);
 
-      const content = buildBrainFlexResponse(body);
+      const content = await buildBrainFlexResponse(body, userId);
+      recordBrainFlexGeneration(userId, content);
       console.log("Generated Brain-Flex sections:", content.sections);
       console.log("[brain-flex/save] full content:", content);
 
@@ -655,7 +808,11 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
         { instructions: "", ...content },
         userId,
       );
-      await storage.incrementWorksheetCount(userId);
+      logAnswerKeySaved(worksheet, "brain-flex/save");
+      const recordErr = await recordWorksheetGeneration(userId, worksheet.id);
+      if (recordErr) {
+        return res.status(recordErr.status).json({ message: recordErr.message });
+      }
 
       const [inserted] = await db
         .insert(brainflexWorksheets)
@@ -696,9 +853,9 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
         return res.status(401).json({ message: "Please log in to generate Brain-Flex worksheets" });
       }
       const userId = req.user.id;
-      const user = await storage.getUser(userId);
-      if (user && hasUserReachedWorksheetLimit(user)) {
-        return res.status(403).json({ message: FREE_WORKSHEET_LIMIT_MESSAGE });
+      const quotaErr = await ensureWorksheetQuota(userId);
+      if (quotaErr) {
+        return res.status(quotaErr.status).json({ message: quotaErr.message });
       }
 
       const schema = z.object({
@@ -710,28 +867,34 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
         difficulty: z.string().min(1),
       });
       const body = schema.parse(req.body);
+      if (isBrainFlexRestrictedSubject(body.subject)) {
+        return res.status(403).json({ message: BRAIN_FLEX_RESTRICTED_SUBJECT_MESSAGE });
+      }
       const { className, board, subject, chapter, puzzleTypeIds, difficulty } = body;
 
-      let content: ReturnType<typeof brainFlexContentFromSelection> | undefined;
+      let content: Awaited<ReturnType<typeof brainFlexContentFromSelection>> | undefined;
+      const ctx = makeBrainFlexContext({ board, className, subject, chapter }, userId);
 
       // Regenerate if we accidentally repeat a recent generation for this user.
       const maxAttempts = 10;
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const next = brainFlexContentFromSelection(puzzleTypeIds);
+        ctx.excludeWords = recentBrainFlexWordsByUser.get(userId) ?? [];
+        ctx.excludeRiddles = recentBrainFlexRiddlesByUser.get(userId) ?? [];
+        ctx.excludeBrainTeasers = recentBrainFlexTeasersByUser.get(userId) ?? [];
+        const next = await brainFlexContentFromSelection(puzzleTypeIds, ctx);
 
         const hash = crypto.createHash("sha256").update(JSON.stringify(next)).digest("hex");
         const recent = recentBrainFlexHashesByUser.get(userId) ?? [];
         if (!recent.includes(hash)) {
-          recent.unshift(hash);
-          recentBrainFlexHashesByUser.set(userId, recent.slice(0, 30));
+          recordBrainFlexGeneration(userId, next);
           content = next;
           break;
         }
       }
 
       if (!content) {
-        // Extremely unlikely; still return *something* rather than fail hard.
-        content = brainFlexContentFromSelection(puzzleTypeIds);
+        content = await brainFlexContentFromSelection(puzzleTypeIds, ctx);
+        recordBrainFlexGeneration(userId, content);
       }
 
       console.log("Generated Brain-Flex sections:", content.sections);
@@ -752,7 +915,11 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
         content,
         userId,
       );
-      await storage.incrementWorksheetCount(userId);
+      logAnswerKeySaved(worksheet, "brain-flex/generate");
+      const recordErr = await recordWorksheetGeneration(userId, worksheet.id);
+      if (recordErr) {
+        return res.status(recordErr.status).json({ message: recordErr.message });
+      }
 
       return res.json({ id: worksheet.id });
     } catch (err) {
@@ -776,6 +943,7 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
   });
 
   registerPaymentRoutes(app);
+  registerQuestionPaperRoutes(app);
 
   app.post("/api/content/upload", async (req, res) => {
     try {

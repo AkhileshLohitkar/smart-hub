@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { Menu, X, LogOut, FileText, ClipboardList, Home as HomeIcon, CreditCard, BookOpen, Brain } from "lucide-react";
+import { Menu, X, LogOut, FileText, ClipboardList, Home as HomeIcon, CreditCard, BookOpen, Brain, ScrollText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ProfileMenuDropdown, type ProfileMenuUser } from "@/components/ProfileMenuDropdown";
@@ -27,6 +27,7 @@ const DEFAULT_LINKS: NavLink[] = [
   { href: "/my-notes", label: "My Notes", icon: <BookOpen className="w-4 h-4" />, testId: "link-my-notes" },
   { href: "/history", label: "My Worksheets", icon: <FileText className="w-4 h-4" />, testId: "link-my-worksheets" },
   { href: "/brain-flex", label: "Brain Flex", icon: <Brain className="w-4 h-4" />, testId: "link-brain-flex" },
+  { href: "/question-paper-studio", label: "Question Paper Studio", icon: <ScrollText className="w-4 h-4" />, testId: "link-question-paper-studio" },
 ];
 
 export function AppNav({ user, onLogout, activeLinks, showPlanBadge = true }: AppNavProps) {
@@ -36,9 +37,9 @@ export function AppNav({ user, onLogout, activeLinks, showPlanBadge = true }: Ap
 
   return (
     <nav className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-border/50 sticky top-0 z-50 no-print">
-      <div className="flex items-center w-full max-w-[93rem] mx-auto px-6 h-14 sm:h-16 gap-3">
+      <div className="flex items-center justify-between w-full max-w-[93rem] mx-auto px-4 sm:px-6 h-14 sm:h-16 gap-2 sm:gap-3">
         {/* LEFT: logo */}
-        <div className="flex flex-1 items-center justify-start min-w-0">
+        <div className="flex items-center shrink-0 min-w-0">
           <Link href="/new-worksheet" className="flex items-center gap-2 shrink-0">
             <img
               src={logoImage}
@@ -52,37 +53,41 @@ export function AppNav({ user, onLogout, activeLinks, showPlanBadge = true }: Ap
           </Link>
         </div>
 
-        {/* CENTER: navigation (desktop) */}
-        <div className="hidden md:flex items-center justify-center gap-6 lg:gap-8 shrink-0 whitespace-nowrap text-sm">
-          {links.map((link) => (
-            <Link key={link.href} href={link.href}>
+        {/* CENTER: navigation (desktop / tablet) */}
+        <div className="hidden md:flex flex-1 items-center justify-center min-w-0 mx-1 lg:mx-2">
+          <div className="flex items-center justify-center gap-0.5 md:gap-1 lg:gap-1.5 xl:gap-2 min-w-0 max-w-full overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            {links.map((link) => (
+              <Link key={link.href} href={link.href} className="shrink-0">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  data-testid={link.testId}
+                  title={link.label}
+                  className="text-xs font-medium px-2 lg:px-2.5 xl:px-3 h-9 whitespace-nowrap"
+                >
+                  {link.icon}
+                  <span className="ml-1 hidden xl:inline">{link.label}</span>
+                </Button>
+              </Link>
+            ))}
+            <Link href="/pricing" className="shrink-0">
               <Button
                 variant="ghost"
                 size="sm"
-                data-testid={link.testId}
-                className="text-xs font-medium px-3 h-9"
+                data-testid="button-manage-subscription"
+                title="View Plans"
+                className="text-xs font-medium px-2 lg:px-2.5 xl:px-3 h-9 whitespace-nowrap"
               >
-                {link.icon}
-                <span className="ml-1 hidden lg:inline">{link.label}</span>
+                <CreditCard className="w-4 h-4 shrink-0" />
+                <span className="ml-1 hidden lg:inline">View Plans</span>
               </Button>
             </Link>
-          ))}
-          <Link href="/pricing">
-            <Button
-              variant="ghost"
-              size="sm"
-              data-testid="button-manage-subscription"
-              className="text-xs font-medium px-3 h-9"
-            >
-              <CreditCard className="w-4 h-4 mr-1" />
-              <span className="hidden lg:inline">View Plans</span>
-            </Button>
-          </Link>
+          </div>
         </div>
 
         {/* RIGHT: theme + profile (desktop) / mobile menu */}
-        <div className="flex flex-1 items-center justify-end gap-2 min-w-0">
-          <div className="hidden md:flex items-center gap-2 shrink-0">
+        <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0 flex-shrink-0">
+          <div className="hidden md:flex items-center gap-1.5 lg:gap-2 shrink-0 flex-shrink-0">
             <ThemeToggle />
             <ProfileMenuDropdown
               user={user}
@@ -90,7 +95,7 @@ export function AppNav({ user, onLogout, activeLinks, showPlanBadge = true }: Ap
               showPlanBadge={showPlanBadge}
             />
           </div>
-          <div className="flex md:hidden items-center gap-1">
+          <div className="flex md:hidden items-center gap-1 shrink-0">
             <ProfileMenuDropdown
               user={user}
               onLogout={onLogout}
@@ -103,7 +108,7 @@ export function AppNav({ user, onLogout, activeLinks, showPlanBadge = true }: Ap
               size="icon"
               onClick={() => setMobileOpen(!mobileOpen)}
               data-testid="button-mobile-menu"
-              className="h-9 w-9"
+              className="h-9 w-9 shrink-0"
             >
               {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </Button>

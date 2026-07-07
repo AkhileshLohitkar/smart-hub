@@ -19,9 +19,16 @@ export function useGenerateWorksheet() {
       if (!res.ok) {
         if (res.status === 400) {
           const errorData = await res.json();
-          // Fallback parsing just in case response format is different
           const error = api.worksheets.generate.responses[400].safeParse(errorData);
           throw new Error(error.success ? error.data.message : "Validation failed");
+        }
+        if (res.status === 403) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(
+            typeof errorData?.message === "string"
+              ? errorData.message
+              : "You have reached your worksheet limit. Please upgrade your plan.",
+          );
         }
         throw new Error("Failed to generate worksheet");
       }

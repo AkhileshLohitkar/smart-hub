@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { users, worksheets, contentUploads, payments, type InsertUser, type User, type InsertWorksheet, type WorksheetResponse, type ContentUpload, type Payment } from "@shared/schema";
+import { users, worksheets, contentUploads, payments, passwordResetTokens, type InsertUser, type User, type InsertWorksheet, type WorksheetResponse, type ContentUpload, type Payment, type PasswordResetToken } from "@shared/schema";
 import { eq, and, desc, sql, gte, ilike, or, inArray, lt } from "drizzle-orm";
 import { sanitizeJsonStrings, sanitizeRecordStrings } from "./utils/sanitizeText";
 
@@ -38,8 +38,11 @@ export interface IStorage {
     }
   ): Promise<User>;
   updateRazorpayCustomerId(userId: number, razorpayCustomerId: string): Promise<User>;
+  addTopUpWorksheets(userId: number, worksheets: number): Promise<User>;
   updateUserStripeSubscription(userId: number, stripeSubscriptionId: string): Promise<User>;
   incrementWorksheetCount(userId: number): Promise<void>;
+  incrementWorksheetCountCapped(userId: number, limit: number | null): Promise<boolean>;
+  deleteWorksheet(id: number, userId: number): Promise<boolean>;
   getWorksheet(id: number): Promise<WorksheetResponse | undefined>;
   createWorksheet(worksheet: InsertWorksheet, content: any, userId?: number): Promise<WorksheetResponse>;
   rateWorksheet(id: number, rating: number): Promise<WorksheetResponse>;
@@ -68,6 +71,12 @@ export interface IStorage {
     data: { razorpayPaymentId?: string; status?: string },
   ): Promise<Payment | undefined>;
   syncFreePaymentWorksheetLimits(freeLimit: number): Promise<number>;
+  getUserByEmailInsensitive(email: string): Promise<User | undefined>;
+  createPasswordResetToken(userId: number, tokenHash: string, expiresAt: Date): Promise<PasswordResetToken>;
+  getPasswordResetTokenByHash(tokenHash: string): Promise<PasswordResetToken | undefined>;
+  getLatestPasswordResetTokenForUser(userId: number): Promise<PasswordResetToken | undefined>;
+  deletePasswordResetTokensForUser(userId: number): Promise<void>;
+  updateUserPassword(userId: number, hashedPassword: string): Promise<User>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -78,6 +87,15 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  }
+
+  async getUserByEmailInsensitive(email: string): Promise<User | undefined> {
+    const normalized = email.trim().toLowerCase();
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(sql`lower(${users.email}) = ${normalized}`);
     return user;
   }
 
@@ -155,6 +173,19 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async addTopUpWorksheets(userId: number, worksheets: number): Promise<User> {
+    const user = await this.getUser(userId);
+    if (!user) throw new Error("User not found");
+    const [updated] = await db
+      .update(users)
+      .set({
+        topUpWorksheetsBalance: (user.topUpWorksheetsBalance ?? 0) + worksheets,
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  }
+
   async updateUserStripeSubscription(userId: number, stripeSubscriptionId: string): Promise<User> {
     const [updated] = await db.update(users)
       .set({ stripeSubscriptionId })
@@ -170,6 +201,31 @@ export class DatabaseStorage implements IStorage {
         .set({ worksheetsGenerated: user.worksheetsGenerated + 1 })
         .where(eq(users.id, userId));
     }
+  }
+
+  /**
+   * Atomically increments the counter only while worksheetsGenerated < limit.
+   * When limit is null the user has no cap and the counter always increments.
+   */
+  async incrementWorksheetCountCapped(userId: number, limit: number | null): Promise<boolean> {
+    if (limit == null) {
+      await this.incrementWorksheetCount(userId);
+      return true;
+    }
+    const [updated] = await db
+      .update(users)
+      .set({ worksheetsGenerated: sql`${users.worksheetsGenerated} + 1` })
+      .where(and(eq(users.id, userId), lt(users.worksheetsGenerated, limit)))
+      .returning({ id: users.id });
+    return !!updated;
+  }
+
+  async deleteWorksheet(id: number, userId: number): Promise<boolean> {
+    const deleted = await db
+      .delete(worksheets)
+      .where(and(eq(worksheets.id, id), eq(worksheets.userId, userId)))
+      .returning({ id: worksheets.id });
+    return deleted.length > 0;
   }
 
   async getWorksheet(id: number): Promise<WorksheetResponse | undefined> {
@@ -390,6 +446,49 @@ export class DatabaseStorage implements IStorage {
       .where(and(...conditions))
       .orderBy(desc(contentUploads.createdAt))
       .limit(3);
+  }
+
+  async createPasswordResetToken(
+    userId: number,
+    tokenHash: string,
+    expiresAt: Date,
+  ): Promise<PasswordResetToken> {
+    const [created] = await db
+      .insert(passwordResetTokens)
+      .values({ userId, tokenHash, expiresAt })
+      .returning();
+    return created;
+  }
+
+  async getPasswordResetTokenByHash(tokenHash: string): Promise<PasswordResetToken | undefined> {
+    const [record] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(eq(passwordResetTokens.tokenHash, tokenHash));
+    return record;
+  }
+
+  async getLatestPasswordResetTokenForUser(userId: number): Promise<PasswordResetToken | undefined> {
+    const [record] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(eq(passwordResetTokens.userId, userId))
+      .orderBy(desc(passwordResetTokens.createdAt))
+      .limit(1);
+    return record;
+  }
+
+  async deletePasswordResetTokensForUser(userId: number): Promise<void> {
+    await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, userId));
+  }
+
+  async updateUserPassword(userId: number, hashedPassword: string): Promise<User> {
+    const [updated] = await db
+      .update(users)
+      .set({ password: hashedPassword })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
   }
 }
 

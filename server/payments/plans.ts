@@ -1,10 +1,13 @@
 import {
   getPlanAmountInr,
-  pricingPlans,
+  PRICING_PLANS as pricingPlans,
+  PRICING_PLAN_ORDER,
+  TOP_UP_PLANS as topUpPlans,
+  TOP_UP_PLAN_ORDER,
   type BillingCycle,
   type PaidWorksheetPlanKey,
   type WorksheetPlanKey,
-} from "../config/pricing";
+} from "@shared/pricing";
 
 export type RazorpayPlanPeriod = "monthly" | "yearly" | "one_time";
 
@@ -15,10 +18,11 @@ export type RazorpayPlanDef = {
   currency: "INR";
   period: RazorpayPlanPeriod;
   description: string;
-  worksheetPlanKey: WorksheetPlanKey;
+  worksheetPlanKey?: WorksheetPlanKey;
   billingCycle: BillingCycle | null;
   kind: "base" | "topup" | "legacy";
   worksheetsIncluded: number;
+  universalTopUp?: boolean;
 };
 
 function toPaise(inr: number): number {
@@ -44,7 +48,7 @@ export function buildPublicRazorpayPlans(): RazorpayPlanDef[] {
   const plans: RazorpayPlanDef[] = [];
 
   for (const key of paidKeys) {
-    const plan = pricingPlans[key] as (typeof pricingPlans)["w50"];
+    const plan = pricingPlans[key];
     for (const cycle of ["monthly", "yearly"] as BillingCycle[]) {
       const amount = resolveAmountPaise(key, cycle);
       const amountInr = getPlanAmountInr(key, cycle);
@@ -64,21 +68,22 @@ export function buildPublicRazorpayPlans(): RazorpayPlanDef[] {
         worksheetsIncluded: plan.worksheetsIncluded,
       });
     }
+  }
 
-    if (plan.topUpPrice != null && plan.topUpWorksheetsPerMonth != null) {
-      plans.push({
-        planKey: `${key}_topup`,
-        name: `Top-up: +${plan.topUpWorksheetsPerMonth} Worksheets`,
-        amount: toPaise(plan.topUpPrice),
-        currency: "INR",
-        period: "one_time",
-        description: `Add ${plan.topUpWorksheetsPerMonth} worksheets for ₹${plan.topUpPrice}`,
-        worksheetPlanKey: key,
-        billingCycle: null,
-        kind: "topup",
-        worksheetsIncluded: plan.topUpWorksheetsPerMonth,
-      });
-    }
+  for (const key of TOP_UP_PLAN_ORDER) {
+    const topUp = topUpPlans[key];
+    plans.push({
+      planKey: key,
+      name: `Top-up: +${topUp.worksheets} Worksheets`,
+      amount: toPaise(topUp.price),
+      currency: "INR",
+      period: "one_time",
+      description: `Add ${topUp.worksheets} worksheets for ₹${topUp.price}`,
+      billingCycle: null,
+      kind: "topup",
+      worksheetsIncluded: topUp.worksheets,
+      universalTopUp: true,
+    });
   }
 
   return plans;
@@ -170,7 +175,7 @@ export function resolveRazorpayPlan(
 }
 
 export function getWorksheetsIncludedForPlanName(planName: string): number {
-  for (const key of pricingPlans.order) {
+  for (const key of PRICING_PLAN_ORDER) {
     if (pricingPlans[key].name === planName) {
       return pricingPlans[key].worksheetsIncluded;
     }

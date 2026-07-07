@@ -82,6 +82,10 @@
   * {
     @apply border-border;
   }
+  html,
+  body {
+    @apply overflow-x-hidden;
+  }
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
@@ -137,13 +141,19 @@
 
   @media print {
     @page {
-      margin: 1cm;
+      margin: 10mm;
       size: A4 portrait;
     }
+    html,
     body {
       background-color: white !important;
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
+    }
+    footer,
+    .site-footer,
+    .global-footer {
+      display: none !important;
     }
     .no-print {
       display: none !important;
@@ -155,8 +165,36 @@
       page-break-inside: avoid;
       break-inside: avoid;
     }
+    /* Brain-Flex: continuous flow; avoid only small grids */
+    .brain-flex-print-root ~ .site-footer,
+    .brain-flex-print-root + .site-footer {
+      display: none !important;
+    }
+    .brain-flex-print-root {
+      min-height: auto !important;
+    }
+    .brain-flex-worksheet {
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    .bf-section {
+      page-break-inside: auto;
+      break-inside: auto;
+    }
+    .bf-keep-together {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .bf-answer-key {
+      page-break-before: always;
+      break-before: page;
+    }
     #worksheet-content {
       overflow: visible !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      max-width: none !important;
     }
     #answer-sheet-content {
       page-break-before: always;
@@ -177,9 +215,28 @@
       top: 50% !important;
       left: 50% !important;
       transform: translate(-50%, -50%) !important;
-      width: 150mm !important;
-      height: 150mm !important;
+      width: var(--print-wm-size, 150mm) !important;
+      height: var(--print-wm-size, 150mm) !important;
       opacity: 0.06 !important;
+      pointer-events: none !important;
+      z-index: 9999 !important;
+    }
+    .print-watermark-text {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      position: fixed !important;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) rotate(-30deg) !important;
+      width: 180mm !important;
+      max-width: 90vw !important;
+      font-size: var(--print-wm-font, 96px) !important;
+      font-weight: 700 !important;
+      line-height: 1 !important;
+      text-align: center !important;
+      color: rgba(0, 0, 0, 0.07) !important;
+      word-break: break-word !important;
       pointer-events: none !important;
       z-index: 9999 !important;
     }

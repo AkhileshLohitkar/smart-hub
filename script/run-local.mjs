@@ -219,7 +219,14 @@ const run = (cmd, args) =>
   });
 
 console.log("[local-db] Applying schema (drizzle-kit push)…");
-await run("npm", ["run", "db:push", "--", "--force"]);
+try {
+  await run("npm", ["run", "db:push", "--", "--force"]);
+} catch (err) {
+  console.warn("[local-db] drizzle-kit push did not complete cleanly:", err?.message || err);
+}
+
+console.log("[local-db] Ensuring payment and chat tables exist…");
+await run("node", ["script/ensure-payments-table.mjs"]);
 
 console.log(
   "[local-db] Default URL: http://localhost:" +

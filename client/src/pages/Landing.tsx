@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useUser } from "@/hooks/use-auth";
 import { PricingPlansSection } from "@/components/PricingPlansSection";
+import { FaqSection } from "@/components/FaqSection";
 
 const features = [
   {
@@ -46,31 +47,53 @@ export default function Landing() {
   const { data: user } = useUser();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-border/50">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <img src={logoImage} alt="Qik Worksheet" className="w-20 h-20 sm:w-32 sm:h-32 rounded-lg object-contain drop-shadow-md logo-vibrant" data-testid="logo-image" />
-            <span className="text-lg sm:text-xl font-display font-bold text-gradient-primary" data-testid="logo-text">Qik Worksheets</span>
+        <div className="container mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 lg:h-[4.5rem] flex items-center justify-between gap-2 min-w-0">
+          <Link href="/" className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1 overflow-hidden mr-1 sm:mr-2">
+            <img
+              src={logoImage}
+              alt="Qik Worksheet"
+              className="h-9 w-9 sm:h-10 sm:w-10 md:h-11 md:w-11 rounded-lg object-contain drop-shadow-md logo-vibrant shrink-0"
+              data-testid="logo-image"
+            />
+            <span
+              className="truncate text-sm sm:text-base md:text-lg lg:text-xl font-display font-bold text-gradient-primary min-w-0"
+              data-testid="logo-text"
+            >
+              Qik Worksheets
+            </span>
           </Link>
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1 sm:gap-2 md:gap-3 shrink-0">
             <ThemeToggle />
             {user ? (
-              <>
-                <Link href="/new-worksheet">
-                  <Button className="bg-gradient-primary text-white font-semibold rounded-xl hover:opacity-90 transition-opacity text-sm sm:text-base" data-testid="nav-dashboard">
-                    Go to Dashboard
-                  </Button>
-                </Link>
-              </>
+              <Link href="/new-worksheet">
+                <Button
+                  className="bg-gradient-primary text-white font-semibold rounded-xl hover:opacity-90 transition-opacity h-9 px-3 text-xs sm:h-10 sm:px-4 sm:text-sm md:text-base"
+                  data-testid="nav-dashboard"
+                >
+                  <span className="hidden sm:inline">Go to Dashboard</span>
+                  <span className="sm:hidden">Dashboard</span>
+                </Button>
+              </Link>
             ) : (
               <>
                 <Link href="/auth">
-                  <Button variant="ghost" className="font-semibold text-sm sm:text-base" data-testid="nav-login">Log In</Button>
+                  <Button
+                    variant="ghost"
+                    className="font-semibold h-9 px-2 text-xs sm:h-10 sm:px-3 sm:text-sm md:text-base"
+                    data-testid="nav-login"
+                  >
+                    Log In
+                  </Button>
                 </Link>
                 <Link href="/auth?tab=register">
-                  <Button className="bg-gradient-primary text-white font-semibold rounded-xl hover:opacity-90 transition-opacity text-sm sm:text-base" data-testid="nav-signup">
-                    Sign Up Free
+                  <Button
+                    className="bg-gradient-primary text-white font-semibold rounded-xl hover:opacity-90 transition-opacity h-9 px-2.5 text-xs sm:h-10 sm:px-4 sm:text-sm md:text-base whitespace-nowrap"
+                    data-testid="nav-signup"
+                  >
+                    <span className="hidden sm:inline">Sign Up Free</span>
+                    <span className="sm:hidden">Sign Up</span>
                   </Button>
                 </Link>
               </>
@@ -79,9 +102,9 @@ export default function Landing() {
         </div>
       </nav>
 
-      <section className="pt-24 pb-14 px-4 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-primary opacity-5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-gradient-warm opacity-5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/4 pointer-events-none" />
+      <section className="pt-[4.75rem] sm:pt-24 md:pt-28 pb-10 sm:pb-14 px-4 sm:px-6 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-[280px] h-[280px] sm:w-[450px] sm:h-[450px] lg:w-[600px] lg:h-[600px] bg-gradient-primary opacity-5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[240px] h-[240px] sm:w-[400px] sm:h-[400px] lg:w-[500px] lg:h-[500px] bg-gradient-warm opacity-5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/4 pointer-events-none" />
 
         <div className="container mx-auto max-w-5xl text-center relative z-10">
           <motion.div
@@ -89,33 +112,47 @@ export default function Landing() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <div className="mb-3">
-              <img src={logoImage} alt="Qik Worksheet" className="w-40 h-40 sm:w-52 sm:h-52 mx-auto mb-2 drop-shadow-xl object-contain logo-vibrant" data-testid="hero-logo" />
+            <div className="mb-2 sm:mb-3">
+              <img
+                src={logoImage}
+                alt="Qik Worksheet"
+                className="w-28 h-28 sm:w-36 sm:h-36 md:w-44 md:h-44 lg:w-52 lg:h-52 mx-auto mb-2 drop-shadow-xl object-contain logo-vibrant"
+                data-testid="hero-logo"
+              />
             </div>
-            <Badge className="bg-gradient-primary text-white border-0 px-4 py-1.5 text-sm font-semibold mb-4">
-              <Sparkles className="w-4 h-4 mr-1.5" />
+            <Badge className="bg-gradient-primary text-white border-0 px-3 sm:px-4 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold mb-3 sm:mb-4">
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" />
               AI-Powered Education
             </Badge>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-display font-extrabold leading-tight mb-4">
+            <h1 className="text-[1.75rem] leading-tight sm:text-4xl md:text-5xl lg:text-6xl font-display font-extrabold mb-3 sm:mb-4 px-1">
               Create perfect{" "}
-              <span className="text-gradient-primary">worksheets</span>
-              <br />in seconds.
+              <span className="text-gradient-primary">worksheets</span>{" "}
+              in seconds.
             </h1>
 
-            <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed">
+            <p className="text-sm sm:text-base md:text-lg text-muted-foreground max-w-2xl mx-auto mb-5 sm:mb-6 leading-relaxed px-1 sm:px-2">
               Qik Worksheets uses AI to generate curriculum-aligned, print-ready practice materials
               for CBSE and State Board. Save hours of preparation time.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link href="/auth?tab=register">
-                <Button size="lg" className="bg-gradient-primary text-white font-bold rounded-xl text-lg px-8 py-5 hover:opacity-90 transition-opacity shadow-lg shadow-pink-500/20" data-testid="hero-get-started">
-                  Get Started Free <ArrowRight className="w-5 h-5 ml-2" />
+            <div className="flex flex-col sm:flex-row gap-3 justify-center items-stretch sm:items-center max-w-sm sm:max-w-none mx-auto px-2 sm:px-0">
+              <Link href="/auth?tab=register" className="w-full sm:w-auto">
+                <Button
+                  size="lg"
+                  className="w-full sm:w-auto bg-gradient-primary text-white font-bold rounded-xl text-base sm:text-lg px-6 sm:px-8 py-5 hover:opacity-90 transition-opacity shadow-lg shadow-pink-500/20"
+                  data-testid="hero-get-started"
+                >
+                  Try For Free <ArrowRight className="w-5 h-5 ml-2" />
                 </Button>
               </Link>
-              <a href="#pricing">
-                <Button size="lg" variant="outline" className="font-bold rounded-xl text-lg px-8 py-5 border-2" data-testid="hero-view-plans">
+              <a href="#pricing" className="w-full sm:w-auto">
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full sm:w-auto font-bold rounded-xl text-base sm:text-lg px-6 sm:px-8 py-5 border-2"
+                  data-testid="hero-view-plans"
+                >
                   View Plans
                 </Button>
               </a>
@@ -124,18 +161,18 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-20 px-4 bg-muted/30">
+      <section className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6 bg-muted/30">
         <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl sm:text-4xl font-display font-bold mb-4">
+          <div className="text-center mb-8 sm:mb-12 lg:mb-14">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold mb-3 sm:mb-4 px-2">
               Why teachers & parents love <span className="text-gradient-primary">Qik Worksheets</span>
             </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+            <p className="text-muted-foreground text-sm sm:text-base md:text-lg max-w-2xl mx-auto px-2">
               Everything you need to create high-quality educational materials.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {features.map((feature, idx) => (
               <motion.div
                 key={idx}
@@ -157,18 +194,20 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-20 px-4" id="pricing">
+      <section className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6" id="pricing">
         <div className="container mx-auto max-w-6xl">
           <PricingPlansSection headerVariant="landing" showPaymentRecover={!!user} />
         </div>
       </section>
 
-      <section className="py-20 px-4 bg-muted/30">
+      <FaqSection limit={5} showViewAllLink />
+
+      <section className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6 bg-muted/30">
         <div className="container mx-auto max-w-4xl text-center">
-          <h2 className="text-3xl sm:text-4xl font-display font-bold mb-4">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold mb-3 sm:mb-4 px-2">
             How it works
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 mt-8 sm:mt-12">
             {[
               { step: "1", title: "Configure", desc: "Select board, class, subject, topic, and difficulty level." },
               { step: "2", title: "Generate", desc: "Our AI creates a perfectly aligned, print-ready worksheet." },
@@ -193,18 +232,18 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-20 px-4">
+      <section className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6">
         <div className="container mx-auto max-w-6xl">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl sm:text-4xl font-display font-bold mb-4">
+          <div className="text-center mb-8 sm:mb-12 lg:mb-14">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold mb-3 sm:mb-4 px-2">
               What Parents & Teachers <span className="text-gradient-primary">Say</span>
             </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+            <p className="text-muted-foreground text-sm sm:text-base md:text-lg max-w-2xl mx-auto px-2">
               Trusted by educators and families across India.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {[
               {
                 name: "Priya Sharma",
@@ -291,17 +330,21 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-20 px-4 bg-muted/30">
-        <div className="container mx-auto max-w-3xl text-center">
-          <h2 className="text-3xl sm:text-4xl font-display font-bold mb-6">
+      <section className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6 bg-muted/30">
+        <div className="container mx-auto max-w-3xl text-center px-2">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold mb-4 sm:mb-6">
             Ready to save hours of preparation?
           </h2>
-          <p className="text-muted-foreground text-lg mb-8">
+          <p className="text-muted-foreground text-sm sm:text-base md:text-lg mb-6 sm:mb-8">
             Join thousands of teachers and parents who trust Qik Worksheets for quality educational materials.
           </p>
-          <Link href="/auth?tab=register">
-            <Button size="lg" className="bg-gradient-primary text-white font-bold rounded-xl text-lg px-10 py-6 hover:opacity-90 transition-opacity shadow-lg shadow-pink-500/20" data-testid="cta-get-started">
-              Get Started Free <ArrowRight className="w-5 h-5 ml-2" />
+          <Link href="/auth?tab=register" className="inline-block w-full sm:w-auto max-w-sm sm:max-w-none mx-auto">
+            <Button
+              size="lg"
+              className="w-full sm:w-auto bg-gradient-primary text-white font-bold rounded-xl text-base sm:text-lg px-8 sm:px-10 py-5 sm:py-6 hover:opacity-90 transition-opacity shadow-lg shadow-pink-500/20"
+              data-testid="cta-get-started"
+            >
+              Try For Free <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
           </Link>
         </div>

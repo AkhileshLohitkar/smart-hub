@@ -1,61 +1,23 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { PricingCard, type BillingCycle } from "@/components/PricingCard";
+import { TopUpSection } from "@/components/TopUpSection";
 import { useUser } from "@/hooks/use-auth";
 import { queryClient } from "@/lib/queryClient";
-import { FREE_PLAN_WORKSHEETS_INCLUDED } from "@shared/worksheetLimits";
+import {
+  FREE_PLAN_WORKSHEETS_INCLUDED,
+  getPlan,
+  getPlanFeatures,
+  getTopUpPlanList,
+  getWorksheetLabel,
+  getYearlyWorksheetTotal,
+  PRICING_SECTIONS,
+  type PaidWorksheetPlanKey,
+  type TopUpPlanKey,
+  type WorksheetPlanKey,
+} from "@shared/pricing";
 import { cn } from "@/lib/utils";
-
-type WorksheetPlanKey = "free_2" | "w50" | "w100" | "w200" | "w400";
-
-type PricingPlans = {
-  free_2: { name: string; worksheetsIncluded: number };
-  w50: {
-    name: string;
-    worksheetsIncluded: number;
-    monthlyPrice: number;
-    yearlyPrice: number;
-    yearlyDiscountedPrice: number;
-    topUpWorksheetsPerMonth: number;
-    topUpPrice: number;
-    popular?: boolean;
-  };
-  w100: {
-    name: string;
-    worksheetsIncluded: number;
-    monthlyPrice: number;
-    yearlyPrice: number;
-    yearlyDiscountedPrice: number;
-    topUpWorksheetsPerMonth: number;
-    topUpPrice: number;
-  };
-  w200: {
-    name: string;
-    worksheetsIncluded: number;
-    monthlyPrice: number;
-    yearlyPrice: number;
-    yearlyDiscountedPrice: number;
-    topUpWorksheetsPerMonth: number;
-    topUpPrice: number;
-  };
-  w400: {
-    name: string;
-    worksheetsIncluded: number;
-    monthlyPrice: number;
-    yearlyPrice: number;
-    yearlyDiscountedPrice: number;
-    topUpWorksheetsPerMonth: number;
-    topUpPrice: number;
-  };
-  order: readonly WorksheetPlanKey[];
-};
-
-async function fetchPricing(): Promise<PricingPlans> {
-  const res = await fetch("/api/pricing");
-  if (!res.ok) throw new Error("Failed to load pricing");
-  return res.json();
-}
 
 declare global {
   interface Window {
@@ -93,10 +55,11 @@ async function activateFreePlan(): Promise<void> {
 }
 
 async function startRazorpayCheckout(opts: {
-  planKey: WorksheetPlanKey;
-  billingCycle: BillingCycle;
+  planKey: string;
+  billingCycle?: BillingCycle;
   userEmail?: string;
   userName?: string;
+  userMobile?: string;
   onSuccess?: (planName: string) => void;
 }) {
   await ensureRazorpayLoaded();
@@ -105,10 +68,21 @@ async function startRazorpayCheckout(opts: {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ planKey: opts.planKey, billingCycle: opts.billingCycle }),
+    body: JSON.stringify({
+      planKey: opts.planKey,
+      ...(opts.billingCycle ? { billingCycle: opts.billingCycle } : {}),
+    }),
   });
   const orderJson = await orderRes.json();
-  if (!orderRes.ok) throw new Error(orderJson?.message || "Failed to create order");
+  if (!orderRes.ok) {
+    if (orderJson?.message?.includes("Razorpay") || orderRes.status === 500) {
+      throw new Error(
+        orderJson?.message ||
+          "Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to .env and restart the server.",
+      );
+    }
+    throw new Error(orderJson?.message || "Failed to create order");
+  }
 
   const keyId = orderJson.keyId as string | undefined;
   if (!keyId) {
@@ -117,6 +91,11 @@ async function startRazorpayCheckout(opts: {
     if (!keyRes.ok) throw new Error(keyJson?.message || "Razorpay not configured");
     orderJson.keyId = keyJson.keyId;
   }
+
+  const contact =
+    opts.userMobile && opts.userMobile.length === 10
+      ? `+91${opts.userMobile}`
+      : undefined;
 
   return new Promise<void>((resolve, reject) => {
     const rzp = new window.Razorpay({
@@ -129,6 +108,10 @@ async function startRazorpayCheckout(opts: {
       prefill: {
         email: opts.userEmail,
         name: opts.userName,
+        contact,
+      },
+      notes: {
+        planKey: orderJson.planKey,
       },
       handler: async (response: {
         razorpay_order_id: string;
@@ -153,8 +136,10 @@ async function startRazorpayCheckout(opts: {
       },
       modal: {
         ondismiss: () => reject(new Error("Payment cancelled")),
+        confirm_close: true,
+        escape: false,
       },
-      theme: { color: "#ec4899" },
+      theme: { color: "#9333ea" },
     });
     rzp.on("payment.failed", (response: { error?: { description?: string } }) => {
       reject(new Error(response?.error?.description || "Payment failed"));
@@ -163,12 +148,35 @@ async function startRazorpayCheckout(opts: {
   });
 }
 
+function planCardId(planKey: WorksheetPlanKey, cycle?: BillingCycle): string {
+  if (planKey === "free_2") return "free";
+  return cycle ? `${planKey}-${cycle}` : planKey;
+}
+
+function userCanTopUp(
+  user: { plan?: string; planExpiresAt?: string | null } | null | undefined,
+): boolean {
+  if (!user || user.plan !== "paid") return false;
+  if (user.planExpiresAt && new Date(user.planExpiresAt) < new Date()) return false;
+  return true;
+}
+
 type PricingPlansSectionProps = {
-  /** landing: centered marketing header; page: left-aligned page header */
   headerVariant?: "landing" | "page" | "none";
   showPaymentRecover?: boolean;
   className?: string;
 };
+
+function SectionHeading({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div className="mb-8 sm:mb-10 text-center">
+      <h2 className="text-xl sm:text-2xl font-display font-bold">{title}</h2>
+      {subtitle && (
+        <p className="text-muted-foreground text-sm mt-1.5 max-w-xl mx-auto">{subtitle}</p>
+      )}
+    </div>
+  );
+}
 
 export function PricingPlansSection({
   headerVariant = "page",
@@ -177,31 +185,8 @@ export function PricingPlansSection({
 }: PricingPlansSectionProps) {
   const { toast } = useToast();
   const { data: user } = useUser();
-  const [pricing, setPricing] = useState<PricingPlans | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [checkoutPlanKey, setCheckoutPlanKey] = useState<WorksheetPlanKey | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    fetchPricing()
-      .then((p) => {
-        if (!cancelled) setPricing(p);
-      })
-      .catch(() => {
-        toast({
-          title: "Error",
-          description: "Could not load pricing. Please refresh.",
-          variant: "destructive",
-        });
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [toast]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const [checkoutPlanId, setCheckoutPlanId] = useState<string | null>(null);
 
   const requireAuth = () => {
     toast({
@@ -214,18 +199,21 @@ export function PricingPlansSection({
   };
 
   const handlePaidPlan = async (
-    planKey: WorksheetPlanKey,
+    planId: string,
+    planKey: PaidWorksheetPlanKey,
     billingCycle: BillingCycle,
     displayName: string,
   ) => {
     if (!user && !requireAuth()) return;
-    setCheckoutPlanKey(planKey);
+    setSelectedPlanId(planId);
+    setCheckoutPlanId(planId);
     try {
       await startRazorpayCheckout({
         planKey,
         billingCycle,
         userEmail: user?.email,
         userName: user?.name,
+        userMobile: user?.mobileNumber,
         onSuccess: (planName) => {
           window.location.href = `/payment/success?plan=${encodeURIComponent(planName || displayName)}`;
         },
@@ -236,18 +224,144 @@ export function PricingPlansSection({
         toast({ title: "Payment error", description: msg, variant: "destructive" });
       }
     } finally {
-      setCheckoutPlanKey(null);
+      setCheckoutPlanId(null);
     }
   };
+
+  const isProcessing = (planId: string) => checkoutPlanId === planId;
+
+  const handleTopUp = async (planKey: TopUpPlanKey, worksheets: number) => {
+    if (!user && !requireAuth()) return;
+    if (!userCanTopUp(user)) {
+      toast({
+        title: "Top-up unavailable",
+        description: "Subscribe to any paid plan first, then you can buy top-ups.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setCheckoutPlanId(planKey);
+    try {
+      await startRazorpayCheckout({
+        planKey,
+        userEmail: user?.email,
+        userName: user?.name,
+        userMobile: user?.mobileNumber,
+        onSuccess: () => {
+          window.location.href = `/payment/success?plan=${encodeURIComponent(`Top-up +${worksheets} worksheets`)}&topup=1`;
+        },
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Top-up payment could not be completed";
+      if (msg !== "Payment cancelled") {
+        toast({ title: "Top-up failed", description: msg, variant: "destructive" });
+      }
+    } finally {
+      setCheckoutPlanId(null);
+    }
+  };
+
+  const renderPlanCard = (planKey: WorksheetPlanKey) => {
+    const plan = getPlan(planKey);
+
+    if (plan.category === "free") {
+      return (
+        <PricingCard
+          key={planKey}
+          planId="free"
+          selected={selectedPlanId === "free"}
+          disabled={!!checkoutPlanId}
+          planName={plan.name}
+          planNameMonthly={getWorksheetLabel(planKey, "free")}
+          description={plan.description}
+          price={{ kind: "free", amount: 0 }}
+          features={getPlanFeatures(planKey, "free")}
+          ctaLabel="Start free"
+          badgeLabel={plan.badgeLabel}
+          onSelect={async () => {
+            if (!user && !requireAuth()) return;
+            setSelectedPlanId("free");
+            try {
+              await activateFreePlan();
+              await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+              toast({
+                title: "Free plan active",
+                description: `You can generate up to ${FREE_PLAN_WORKSHEETS_INCLUDED} worksheets.`,
+              });
+              window.location.href = "/home";
+            } catch (e: unknown) {
+              toast({
+                title: "Error",
+                description: e instanceof Error ? e.message : "Failed",
+                variant: "destructive",
+              });
+            }
+          }}
+          showCycleToggle={false}
+        />
+      );
+    }
+
+    const paidKey = planKey as PaidWorksheetPlanKey;
+
+    return (
+      <PricingCard
+        key={planKey}
+        planId={paidKey}
+        selected={
+          selectedPlanId === planCardId(paidKey, "monthly") ||
+          selectedPlanId === planCardId(paidKey, "yearly")
+        }
+        disabled={!!checkoutPlanId}
+        planName={plan.name}
+        planNameMonthly={getWorksheetLabel(paidKey, "monthly")}
+        planNameYearly={getWorksheetLabel(paidKey, "yearly")}
+        description={plan.description}
+        popular={plan.popular}
+        highlighted={plan.highlighted}
+        badgeLabel={plan.badgeLabel}
+        price={{
+          kind: "fixed",
+          monthly: plan.monthlyPrice,
+          yearly: plan.yearlyDiscountedPrice ?? 0,
+          yearlyOriginal: plan.yearlyPrice ?? undefined,
+        }}
+        featuresMonthly={getPlanFeatures(paidKey, "monthly")}
+        featuresYearly={getPlanFeatures(paidKey, "yearly")}
+        ctaLabel={
+          isProcessing(planCardId(paidKey, "monthly")) ||
+          isProcessing(planCardId(paidKey, "yearly"))
+            ? "Opening payment…"
+            : "Choose plan"
+        }
+        onSelect={async (cycle) =>
+          handlePaidPlan(
+            planCardId(paidKey, cycle),
+            paidKey,
+            cycle,
+            cycle === "yearly"
+              ? `${getYearlyWorksheetTotal(plan.worksheetsIncluded)} Worksheets`
+              : plan.name,
+          )
+        }
+        showCycleToggle
+      />
+    );
+  };
+
+  const sectionGridClass = (sectionId: string) =>
+    sectionId === "parents"
+      ? "mx-auto grid w-full max-w-5xl grid-cols-1 justify-items-center gap-6 sm:grid-cols-2 lg:grid-cols-3"
+      : "mx-auto grid w-full max-w-3xl grid-cols-1 justify-items-center gap-6 sm:grid-cols-2";
 
   return (
     <div className={cn(className)}>
       {headerVariant === "landing" && (
-        <div className="mb-12 text-center">
-          <h2 className="text-3xl sm:text-4xl font-display font-bold mb-3">
+        <div className="mb-8 sm:mb-12 text-center px-2">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold mb-2 sm:mb-3">
             Choose a <span className="text-gradient-primary">plan</span>
           </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+          <p className="text-muted-foreground text-sm sm:text-base md:text-lg max-w-2xl mx-auto">
             Start free. Upgrade when you&apos;re ready.
           </p>
         </div>
@@ -258,300 +372,33 @@ export function PricingPlansSection({
           <p className="text-sm text-muted-foreground">Start free. Upgrade when you&apos;re ready.</p>
           <h1 className="mt-2 text-3xl sm:text-4xl font-display font-bold">Choose a plan</h1>
           <p className="text-muted-foreground mt-2">
-            Worksheet-based plans with monthly, yearly (discounted), and top-up options.
+            Plans for parents and professionals — with monthly, yearly, and top-up options.
           </p>
         </div>
       )}
 
-      {loading && !pricing ? (
-        <p className={cn("text-muted-foreground", headerVariant !== "none" && "mt-8")}>
-          Loading pricing…
-        </p>
-      ) : (
-        <section className={cn(headerVariant !== "none" && "mt-10")}>
-          <div className="mx-auto grid max-w-[1400px] grid-cols-1 justify-items-center gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            <PricingCard
-              planName={`${pricing?.free_2?.worksheetsIncluded ?? FREE_PLAN_WORKSHEETS_INCLUDED} Worksheets`}
-              description="Perfect to try Qik Worksheets"
-              price={{ kind: "free", amount: 0 }}
-              features={[
-                `Up to ${pricing?.free_2?.worksheetsIncluded ?? FREE_PLAN_WORKSHEETS_INCLUDED} worksheets`,
-                "Watermark on worksheets",
-              ]}
-              ctaLabel="Start free"
-              onSelect={async () => {
-                if (!user && !requireAuth()) return;
-                try {
-                  await activateFreePlan();
-                  await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-                  toast({
-                    title: "Free plan active",
-                    description: `You can generate up to ${pricing?.free_2?.worksheetsIncluded ?? FREE_PLAN_WORKSHEETS_INCLUDED} worksheets.`,
-                  });
-                  window.location.href = "/home";
-                } catch (e: unknown) {
-                  toast({
-                    title: "Error",
-                    description: e instanceof Error ? e.message : "Failed",
-                    variant: "destructive",
-                  });
-                }
-              }}
-              showCycleToggle={false}
-              badgeLabel="Free"
-            />
-
-            <PricingCard
-              planName={`${pricing?.w50.worksheetsIncluded ?? 50} Worksheets — Monthly`}
-              description="Best for regular practice"
-              popular={pricing?.w50.popular ?? true}
-              badgeLabel="Most Popular"
-              price={{
-                kind: "fixed",
-                monthly: pricing?.w50.monthlyPrice ?? 199,
-                yearly: pricing?.w50.yearlyDiscountedPrice ?? 2149,
-                yearlyOriginal: pricing?.w50.yearlyPrice ?? 2399,
-              }}
-              features={[
-                `Up to ${pricing?.w50.worksheetsIncluded ?? 50} worksheets / month`,
-                "Limited worksheets",
-                "Print & download",
-                "Priority support",
-              ]}
-              ctaLabel={checkoutPlanKey === "w50" ? "Processing…" : "Continue"}
-              onSelect={async () =>
-                handlePaidPlan("w50", "monthly", pricing?.w50.name || "50 Worksheets")
-              }
-              showCycleToggle={false}
-              cycleOverride="monthly"
-              topUp={
-                pricing?.w50
-                  ? { worksheets: pricing.w50.topUpWorksheetsPerMonth, price: pricing.w50.topUpPrice }
-                  : null
-              }
-            />
-
-            <PricingCard
-              planName={`${pricing?.w50.worksheetsIncluded ?? 50} Worksheets — Yearly`}
-              description="Best value (discounted yearly)"
-              badgeLabel="Best Value"
-              price={{
-                kind: "fixed",
-                monthly: pricing?.w50.monthlyPrice ?? 199,
-                yearly: pricing?.w50.yearlyDiscountedPrice ?? 2149,
-                yearlyOriginal: pricing?.w50.yearlyPrice ?? 2399,
-              }}
-              features={[
-                `Up to ${pricing?.w50.worksheetsIncluded ?? 50} worksheets / month`,
-                "Limited worksheets",
-                "Print & download",
-                "Priority support",
-              ]}
-              ctaLabel={checkoutPlanKey === "w50" ? "Processing…" : "Continue"}
-              onSelect={async () =>
-                handlePaidPlan("w50", "yearly", pricing?.w50.name || "50 Worksheets")
-              }
-              showCycleToggle={false}
-              cycleOverride="yearly"
-              topUp={
-                pricing?.w50
-                  ? { worksheets: pricing.w50.topUpWorksheetsPerMonth, price: pricing.w50.topUpPrice }
-                  : null
-              }
-            />
-
-            <PricingCard
-              planName={`${pricing?.w100.worksheetsIncluded ?? 100} Worksheets — Monthly`}
-              description="More worksheets for higher usage"
-              price={{
-                kind: "fixed",
-                monthly: pricing?.w100.monthlyPrice ?? 399,
-                yearly: pricing?.w100.yearlyDiscountedPrice ?? 4299,
-                yearlyOriginal: pricing?.w100.yearlyPrice ?? 4799,
-              }}
-              features={[
-                `Up to ${pricing?.w100.worksheetsIncluded ?? 100} worksheets / month`,
-                "Limited worksheets",
-                "Print & download",
-                "Priority support",
-              ]}
-              ctaLabel={checkoutPlanKey === "w100" ? "Processing…" : "Continue"}
-              onSelect={async () =>
-                handlePaidPlan("w100", "monthly", pricing?.w100.name || "100 Worksheets")
-              }
-              showCycleToggle={false}
-              cycleOverride="monthly"
-              topUp={
-                pricing?.w100
-                  ? {
-                      worksheets: pricing.w100.topUpWorksheetsPerMonth,
-                      price: pricing.w100.topUpPrice,
-                    }
-                  : null
-              }
-            />
-
-            <PricingCard
-              planName={`${pricing?.w100.worksheetsIncluded ?? 100} Worksheets — Yearly`}
-              description="Discounted yearly billing"
-              price={{
-                kind: "fixed",
-                monthly: pricing?.w100.monthlyPrice ?? 399,
-                yearly: pricing?.w100.yearlyDiscountedPrice ?? 4299,
-                yearlyOriginal: pricing?.w100.yearlyPrice ?? 4799,
-              }}
-              features={[
-                `Up to ${pricing?.w100.worksheetsIncluded ?? 100} worksheets / month`,
-                "Limited worksheets",
-                "Print & download",
-                "Priority support",
-              ]}
-              ctaLabel={checkoutPlanKey === "w100" ? "Processing…" : "Continue"}
-              onSelect={async () =>
-                handlePaidPlan("w100", "yearly", pricing?.w100.name || "100 Worksheets")
-              }
-              showCycleToggle={false}
-              cycleOverride="yearly"
-              topUp={
-                pricing?.w100
-                  ? {
-                      worksheets: pricing.w100.topUpWorksheetsPerMonth,
-                      price: pricing.w100.topUpPrice,
-                    }
-                  : null
-              }
-            />
-
-            <PricingCard
-              planName={`${pricing?.w200.worksheetsIncluded ?? 200} Worksheets — Monthly`}
-              description="For high monthly usage"
-              price={{
-                kind: "fixed",
-                monthly: pricing?.w200.monthlyPrice ?? 799,
-                yearly: pricing?.w200.yearlyDiscountedPrice ?? 8599,
-                yearlyOriginal: pricing?.w200.yearlyPrice ?? 9599,
-              }}
-              features={[
-                `Up to ${pricing?.w200.worksheetsIncluded ?? 200} worksheets / month`,
-                "Limited worksheets",
-                "Print & download",
-                "Priority support",
-              ]}
-              ctaLabel={checkoutPlanKey === "w200" ? "Processing…" : "Continue"}
-              onSelect={async () =>
-                handlePaidPlan("w200", "monthly", pricing?.w200.name || "200 Worksheets")
-              }
-              showCycleToggle={false}
-              cycleOverride="monthly"
-              topUp={
-                pricing?.w200
-                  ? {
-                      worksheets: pricing.w200.topUpWorksheetsPerMonth,
-                      price: pricing.w200.topUpPrice,
-                    }
-                  : null
-              }
-            />
-
-            <PricingCard
-              planName={`${pricing?.w200.worksheetsIncluded ?? 200} Worksheets — Yearly`}
-              description="Discounted yearly billing"
-              price={{
-                kind: "fixed",
-                monthly: pricing?.w200.monthlyPrice ?? 799,
-                yearly: pricing?.w200.yearlyDiscountedPrice ?? 8599,
-                yearlyOriginal: pricing?.w200.yearlyPrice ?? 9599,
-              }}
-              features={[
-                `Up to ${pricing?.w200.worksheetsIncluded ?? 200} worksheets / month`,
-                "Limited worksheets",
-                "Print & download",
-                "Priority support",
-              ]}
-              ctaLabel={checkoutPlanKey === "w200" ? "Processing…" : "Continue"}
-              onSelect={async () =>
-                handlePaidPlan("w200", "yearly", pricing?.w200.name || "200 Worksheets")
-              }
-              showCycleToggle={false}
-              cycleOverride="yearly"
-              topUp={
-                pricing?.w200
-                  ? {
-                      worksheets: pricing.w200.topUpWorksheetsPerMonth,
-                      price: pricing.w200.topUpPrice,
-                    }
-                  : null
-              }
-            />
-
-            <PricingCard
-              planName={`${pricing?.w400.worksheetsIncluded ?? 400} Worksheets — Monthly`}
-              description="For maximum monthly usage"
-              price={{
-                kind: "fixed",
-                monthly: pricing?.w400.monthlyPrice ?? 1599,
-                yearly: pricing?.w400.yearlyDiscountedPrice ?? 17199,
-                yearlyOriginal: pricing?.w400.yearlyPrice ?? 19199,
-              }}
-              features={[
-                `Up to ${pricing?.w400.worksheetsIncluded ?? 400} worksheets / month`,
-                "Limited worksheets",
-                "Print & download",
-                "Priority support",
-              ]}
-              ctaLabel={checkoutPlanKey === "w400" ? "Processing…" : "Continue"}
-              onSelect={async () =>
-                handlePaidPlan("w400", "monthly", pricing?.w400.name || "400 Worksheets")
-              }
-              showCycleToggle={false}
-              cycleOverride="monthly"
-              topUp={
-                pricing?.w400
-                  ? {
-                      worksheets: pricing.w400.topUpWorksheetsPerMonth,
-                      price: pricing.w400.topUpPrice,
-                    }
-                  : null
-              }
-            />
-
-            <PricingCard
-              planName={`${pricing?.w400.worksheetsIncluded ?? 400} Worksheets — Yearly`}
-              description="Discounted yearly billing"
-              badgeLabel="Popular"
-              price={{
-                kind: "fixed",
-                monthly: pricing?.w400.monthlyPrice ?? 1599,
-                yearly: pricing?.w400.yearlyDiscountedPrice ?? 17199,
-                yearlyOriginal: pricing?.w400.yearlyPrice ?? 19199,
-              }}
-              features={[
-                `Up to ${pricing?.w400.worksheetsIncluded ?? 400} worksheets / month`,
-                "Limited worksheets",
-                "Print & download",
-                "Priority support",
-              ]}
-              ctaLabel={checkoutPlanKey === "w400" ? "Processing…" : "Continue"}
-              onSelect={async () =>
-                handlePaidPlan("w400", "yearly", pricing?.w400.name || "400 Worksheets")
-              }
-              showCycleToggle={false}
-              cycleOverride="yearly"
-              topUp={
-                pricing?.w400
-                  ? {
-                      worksheets: pricing.w400.topUpWorksheetsPerMonth,
-                      price: pricing.w400.topUpPrice,
-                    }
-                  : null
-              }
-            />
+      {PRICING_SECTIONS.map((section, index) => (
+        <section
+          key={section.id}
+          className={cn(index === 0 ? (headerVariant !== "none" ? "mt-10" : undefined) : "mt-16 sm:mt-20")}
+        >
+          <SectionHeading title={section.title} subtitle={section.subtitle} />
+          <div className={sectionGridClass(section.id)}>
+            {section.planKeys.map((planKey) => renderPlanCard(planKey))}
           </div>
         </section>
-      )}
+      ))}
+
+      <TopUpSection
+        plans={getTopUpPlanList()}
+        disabled={!!checkoutPlanId}
+        topUpEnabled={userCanTopUp(user)}
+        processingKey={checkoutPlanId}
+        onSelect={(planKey, worksheets) => handleTopUp(planKey as TopUpPlanKey, worksheets)}
+      />
 
       {showPaymentRecover && user && (
-        <div className="text-center mt-8">
+        <div className="text-center mt-12">
           <Link href="/payment/recover">
             <button
               type="button"

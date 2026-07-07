@@ -1,5 +1,5 @@
 /**
- * Syncs free plan payment rows to the current worksheet limit (20).
+ * Syncs free plan payment rows to the current worksheet limit (see shared/pricing.ts).
  * Safe to run multiple times — only updates stale free_2 rows below the limit.
  */
 import { config as loadDotenv } from "dotenv";
@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import pg from "pg";
 
-const FREE_PLAN_WORKSHEETS_INCLUDED = 20;
+const FREE_PLAN_WORKSHEETS_INCLUDED = 3;
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const envHere = join(root, ".env");

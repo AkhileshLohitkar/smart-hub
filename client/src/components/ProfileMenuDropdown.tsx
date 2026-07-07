@@ -49,7 +49,7 @@ export function ProfileMenuDropdown({
         <button
           type="button"
           className={cn(
-            "flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm outline-none transition-all duration-200",
+            "flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm outline-none transition-all duration-200 shrink-0 flex-shrink-0",
             "hover:bg-muted/80 focus-visible:ring-2 focus-visible:ring-primary/40",
             className,
           )}
@@ -66,7 +66,7 @@ export function ProfileMenuDropdown({
           </span>
           {variant === "default" && (
             <>
-              <span className="hidden lg:flex flex-col items-start max-w-[180px] min-w-0">
+              <span className="hidden xl:flex flex-col items-start max-w-[160px] min-w-0 shrink-0">
                 <span className="flex items-center gap-1 min-w-0">
                   <span
                     className="truncate font-medium text-foreground text-xs leading-tight"
@@ -85,6 +85,7 @@ export function ProfileMenuDropdown({
                   </span>
                 )}
               </span>
+              <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0 hidden md:inline xl:hidden" />
             </>
           )}
           {variant === "compact" && (

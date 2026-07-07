@@ -1,91 +1,41 @@
-import { FREE_PLAN_WORKSHEETS_INCLUDED } from "@shared/worksheetLimits";
+import {
+  FREE_PLAN_WORKSHEETS_INCLUDED,
+  PRICING_PLANS,
+  PRICING_PLAN_ORDER,
+  TOP_UP_PLANS,
+  TOP_UP_PLAN_ORDER,
+  getPlanAmountInr,
+  getWorksheetLimitForPlanName,
+  type BillingCycle,
+  type PaidWorksheetPlanKey,
+  type PlanType,
+  type WorksheetPlanKey,
+} from "@shared/pricing";
 
-// NOTE: Internally we still store planType/planName on the user row,
-// but pricing is now worksheet-count based (not per-student).
-export type PlanType = "worksheet";
-export type BillingCycle = "monthly" | "yearly";
+export type { BillingCycle, WorksheetPlanKey, PaidWorksheetPlanKey };
+export {
+  FREE_PLAN_WORKSHEETS_INCLUDED,
+  PRICING_PLANS as pricingPlans,
+  PRICING_PLAN_ORDER,
+  TOP_UP_PLANS as topUpPlans,
+  TOP_UP_PLAN_ORDER,
+  getPlanAmountInr,
+  getWorksheetLimitForPlanName,
+  buildPricingApiPayload,
+  type PlanType,
+} from "@shared/pricing";
 
-export type WorksheetPlanKey =
-  | "free_2"
-  | "w50"
-  | "w100"
-  | "w200"
-  | "w400";
+export type PlanCategory = "parents" | "professional";
 
-export type WorksheetPlan = {
-  key: WorksheetPlanKey;
-  name: string;
-  worksheetsIncluded: number;
-  monthlyPrice: number; // INR
-  yearlyPrice: number | null; // INR (MRP)
-  yearlyDiscountedPrice: number | null; // INR (payable)
-  topUpWorksheetsPerMonth: number | null;
-  topUpPrice: number | null; // INR
-  popular?: boolean;
-};
+export type WorksheetPlan = (typeof PRICING_PLANS)[WorksheetPlanKey];
 
-export const pricingPlans = {
-  free_2: {
-    key: "free_2",
-    name: "Free",
-    worksheetsIncluded: FREE_PLAN_WORKSHEETS_INCLUDED,
-    monthlyPrice: 0,
-    yearlyPrice: null,
-    yearlyDiscountedPrice: null,
-    topUpWorksheetsPerMonth: null,
-    topUpPrice: null,
-  },
-  w50: {
-    key: "w50",
-    name: "50 Worksheets",
-    worksheetsIncluded: 50,
-    monthlyPrice: 199,
-    yearlyPrice: 2399,
-    yearlyDiscountedPrice: 2149,
-    topUpWorksheetsPerMonth: 25,
-    topUpPrice: 99,
-    popular: true,
-  },
-  w100: {
-    key: "w100",
-    name: "100 Worksheets",
-    worksheetsIncluded: 100,
-    monthlyPrice: 399,
-    yearlyPrice: 4799,
-    yearlyDiscountedPrice: 4299,
-    topUpWorksheetsPerMonth: 50,
-    topUpPrice: 199,
-  },
-  w200: {
-    key: "w200",
-    name: "200 Worksheets",
-    worksheetsIncluded: 200,
-    monthlyPrice: 799,
-    yearlyPrice: 9599,
-    yearlyDiscountedPrice: 8599,
-    topUpWorksheetsPerMonth: 100,
-    topUpPrice: 399,
-  },
-  w400: {
-    key: "w400",
-    name: "400 Worksheets",
-    worksheetsIncluded: 400,
-    monthlyPrice: 1599,
-    yearlyPrice: 19199,
-    yearlyDiscountedPrice: 17199,
-    topUpWorksheetsPerMonth: 200,
-    topUpPrice: 799,
-  },
-  order: ["free_2", "w50", "w100", "w200", "w400"] as const satisfies readonly WorksheetPlanKey[],
-} as const;
-
-export type PricingPlans = typeof pricingPlans;
+export type PricingPlans = typeof PRICING_PLANS;
 
 export const FREE_WORKSHEET_LIMIT_MESSAGE =
-  "You have reached your free worksheet limit. Upgrade your plan to continue.";
+  "You have reached your Free plan worksheet limit. Please upgrade your plan to generate more worksheets.";
 
 export function getFreeWorksheetLimit(): number {
-  return pricingPlans.free_2.worksheetsIncluded;
+  return PRICING_PLANS.free_2.worksheetsIncluded;
 }
 
 export function isFreeWorksheetUser(user: {
@@ -94,22 +44,60 @@ export function isFreeWorksheetUser(user: {
   planName?: string | null;
 } | null | undefined): boolean {
   if (!user) return false;
+  // Match client profilePlanInfo: plan "free" always counts as free regardless of planType.
+  if (user.plan === "free") return true;
+
   const effectivePlanType = (user.planType || "worksheet") as PlanType;
   if (effectivePlanType !== "worksheet") return false;
 
-  if (user.plan === "free") return true;
-
-  const effectivePlanName = (user.planName || "Free").trim().toLowerCase();
-  return ["free", "basic"].includes(effectivePlanName);
+  const effectivePlanName = (user.planName || "").trim().toLowerCase();
+  return !effectivePlanName || ["free", "basic"].includes(effectivePlanName);
 }
 
 export function getWorksheetLimitForUser(user: {
   plan?: string | null;
   planType?: string | null;
   planName?: string | null;
+  topUpWorksheetsBalance?: number | null;
 } | null | undefined): number | null {
-  if (!isFreeWorksheetUser(user)) return null;
-  return getFreeWorksheetLimit();
+  if (!user) return null;
+
+  if (isFreeWorksheetUser(user)) {
+    return getFreeWorksheetLimit();
+  }
+
+  if (user.plan !== "paid") return null;
+
+  const baseLimit = getWorksheetLimitForPlanName(user.planName);
+  if (baseLimit == null) return null;
+
+  const topUp = Math.max(0, user.topUpWorksheetsBalance ?? 0);
+  return baseLimit + topUp;
+}
+
+export function userEligibleForTopUp(
+  user: {
+    plan?: string | null;
+    planName?: string | null;
+    planExpiresAt?: Date | string | null;
+  } | null | undefined,
+  basePlanKey: PaidWorksheetPlanKey,
+): boolean {
+  if (!user || user.plan !== "paid") return false;
+  if (user.planExpiresAt && new Date(user.planExpiresAt) < new Date()) return false;
+  const expectedName = PRICING_PLANS[basePlanKey].name;
+  return (user.planName || "").trim().toLowerCase() === expectedName.toLowerCase();
+}
+
+export function userEligibleForUniversalTopUp(
+  user: {
+    plan?: string | null;
+    planExpiresAt?: Date | string | null;
+  } | null | undefined,
+): boolean {
+  if (!user || user.plan !== "paid") return false;
+  if (user.planExpiresAt && new Date(user.planExpiresAt) < new Date()) return false;
+  return true;
 }
 
 export function hasUserReachedWorksheetLimit(user: {
@@ -117,9 +105,11 @@ export function hasUserReachedWorksheetLimit(user: {
   planType?: string | null;
   planName?: string | null;
   worksheetsGenerated?: number | null;
+  topUpWorksheetsBalance?: number | null;
 } | null | undefined): boolean {
-  if (!user || !isFreeWorksheetUser(user)) return false;
-  const limit = getFreeWorksheetLimit();
+  if (!user) return true;
+  const limit = getWorksheetLimitForUser(user);
+  if (limit == null) return false;
   return (user.worksheetsGenerated ?? 0) >= limit;
 }
 
@@ -127,15 +117,3 @@ export function hasUserReachedWorksheetLimit(user: {
 export function hasReachedFreeWorksheetLimit(worksheetsGenerated: number): boolean {
   return worksheetsGenerated >= getFreeWorksheetLimit();
 }
-
-export type PaidWorksheetPlanKey = Exclude<WorksheetPlanKey, "free_2">;
-
-export function getPlanAmountInr(
-  planKey: PaidWorksheetPlanKey,
-  billingCycle: BillingCycle,
-): number {
-  const plan: WorksheetPlan = pricingPlans[planKey];
-  if (billingCycle === "monthly") return plan.monthlyPrice;
-  return plan.yearlyDiscountedPrice ?? plan.yearlyPrice ?? plan.monthlyPrice * 12;
-}
-

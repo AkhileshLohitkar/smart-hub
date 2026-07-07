@@ -3,17 +3,27 @@ import { Strategy as LocalStrategy } from "passport-local";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as FacebookStrategy } from "passport-facebook";
 import session from "express-session";
-import { scrypt, randomBytes, timingSafeEqual } from "crypto";
-import { promisify } from "util";
+import { createHash } from "crypto";
 import { storage } from "./storage";
-import { syncUserToEmailList } from "./emailService";
+import { syncUserToEmailList, sendPasswordResetOtpEmail } from "./emailService";
 import type { Express } from "express";
 import type { User } from "@shared/schema";
+import { forgotPasswordSchema, resetPasswordSchema, USER_ROLES } from "@shared/schema";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
 import { logUserActivity, touchLastLoginAt, touchLastLogoutAt } from "./services/userActivity";
+import { hashPassword, comparePasswords } from "./utils/password";
+import { getAppBaseUrl } from "./utils/appUrl";
 
-const scryptAsync = promisify(scrypt);
+function hashResetToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function generateResetOtp(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+const RESET_OTP_TTL_MS = 10 * 60 * 1000;
 
 async function ensureUsersMobileNumberColumn(): Promise<void> {
   try {
@@ -57,16 +67,28 @@ async function ensureSessionTable(): Promise<void> {
   }
 }
 
-async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16).toString("hex");
-  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${buf.toString("hex")}.${salt}`;
-}
-
-async function comparePasswords(supplied: string, stored: string): Promise<boolean> {
-  const [hashed, salt] = stored.split(".");
-  const buf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-  return timingSafeEqual(Buffer.from(hashed, "hex"), buf);
+async function ensurePasswordResetTokensTable(): Promise<void> {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS password_reset_tokens_user_id_idx
+      ON password_reset_tokens (user_id);
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS password_reset_tokens_expires_at_idx
+      ON password_reset_tokens (expires_at);
+    `);
+  } catch (err) {
+    console.error("[Auth] Failed to ensure password_reset_tokens table:", err);
+  }
 }
 
 declare global {
@@ -81,6 +103,7 @@ export async function setupAuth(app: Express) {
   // Ensure new required columns exist for normal signup.
   await ensureUsersMobileNumberColumn();
   await ensureSessionTable();
+  await ensurePasswordResetTokensTable();
 
   const PgStore = connectPg(session);
 
@@ -155,11 +178,7 @@ export async function setupAuth(app: Express) {
     )
   );
 
-  const appUrl = process.env.REPLIT_DEV_DOMAIN
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-    : process.env.REPL_SLUG
-      ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co`
-      : "http://localhost:5000";
+  const appUrl = getAppBaseUrl();
 
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     passport.use(
@@ -280,9 +299,13 @@ export async function setupAuth(app: Express) {
 
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, name, password, mobile } = req.body;
-      if (!email || !name || !password || !mobile) {
+      const { email, name, password, mobile, role } = req.body;
+      if (!email || !name || !password || !mobile || !role) {
         return res.status(400).json({ message: "All fields are required" });
+      }
+      const validRoles = USER_ROLES as readonly string[];
+      if (typeof role !== "string" || !validRoles.includes(role)) {
+        return res.status(400).json({ message: "Please select your role." });
       }
       if (typeof mobile !== "string" || !/^[0-9]{10}$/.test(mobile)) {
         return res.status(400).json({ message: "Mobile number must be exactly 10 digits" });
@@ -301,6 +324,7 @@ export async function setupAuth(app: Express) {
         name,
         password: hashedPassword,
         mobileNumber: mobile,
+        role,
       });
       syncUserToEmailList(email, name).catch((e) =>
         console.error("[Auth] Email sync failed:", e)
@@ -382,5 +406,83 @@ export async function setupAuth(app: Express) {
     }
     const { password: _, ...safeUser } = freshUser;
     res.json(safeUser);
+  });
+
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const parsed = forgotPasswordSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Please enter a valid email address." });
+      }
+
+      const email = parsed.data.email.trim().toLowerCase();
+      const user = await storage.getUserByEmailInsensitive(email);
+
+      if (user?.password) {
+        const otp = generateResetOtp();
+        const tokenHash = hashResetToken(otp);
+        const expiresAt = new Date(Date.now() + RESET_OTP_TTL_MS);
+
+        await storage.deletePasswordResetTokensForUser(user.id);
+        await storage.createPasswordResetToken(user.id, tokenHash, expiresAt);
+
+        const emailResult = await sendPasswordResetOtpEmail(user.email, user.name, otp);
+        if (!emailResult.ok) {
+          if (process.env.NODE_ENV !== "production") {
+            return res.status(502).json({
+              message: emailResult.error,
+              devOtpLogged: emailResult.devOtpLogged,
+              hint:
+                "To send OTP to any email, verify qikworksheet.in in Resend and set RESEND_FROM_EMAIL=Qik Worksheets <hi@qikworksheet.in>. Until then, onboarding@resend.dev only works for Resend test inboxes.",
+            });
+          }
+          console.error("[Auth] Password reset OTP email failed:", emailResult.error);
+        }
+      }
+
+      return res.json({
+        message:
+          "If an account with that email exists, we sent a 6-digit OTP. Check your inbox and spam folder.",
+        emailSent: true,
+      });
+    } catch (err) {
+      console.error("[Auth] Forgot password failed:", err);
+      return res.status(500).json({ message: "Could not process password reset request." });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const parsed = resetPasswordSchema.safeParse(req.body);
+      if (!parsed.success) {
+        const firstError = parsed.error.errors[0]?.message;
+        return res.status(400).json({ message: firstError || "Invalid reset request." });
+      }
+
+      const { email, otp, password } = parsed.data;
+      const normalizedEmail = email.trim().toLowerCase();
+      const user = await storage.getUserByEmailInsensitive(normalizedEmail);
+      if (!user?.password) {
+        return res.status(400).json({ message: "Invalid OTP or email." });
+      }
+
+      const record = await storage.getLatestPasswordResetTokenForUser(user.id);
+      if (!record || record.expiresAt <= new Date()) {
+        return res.status(400).json({ message: "OTP has expired. Please request a new one." });
+      }
+
+      if (record.tokenHash !== hashResetToken(otp)) {
+        return res.status(400).json({ message: "Incorrect OTP. Please try again." });
+      }
+
+      const hashedPassword = await hashPassword(password);
+      await storage.updateUserPassword(user.id, hashedPassword);
+      await storage.deletePasswordResetTokensForUser(user.id);
+
+      return res.json({ message: "Password updated successfully. You can sign in with your new password." });
+    } catch (err) {
+      console.error("[Auth] Reset password failed:", err);
+      return res.status(500).json({ message: "Could not reset password." });
+    }
   });
 }

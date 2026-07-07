@@ -15,6 +15,41 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@shared/routes";
+import { type WorksheetWatermark, WATERMARK_MIN_SIZE, WATERMARK_MAX_SIZE } from "@shared/schema";
+
+type PdfWatermark =
+  | { kind: "image"; dataUrl: string; aspect: number; size: number }
+  | { kind: "text"; text: string; size: number }
+  | null;
+
+function clampWatermarkSize(size: number | undefined): number {
+  const n = Number(size);
+  if (!Number.isFinite(n)) return WATERMARK_MAX_SIZE;
+  return Math.min(WATERMARK_MAX_SIZE, Math.max(WATERMARK_MIN_SIZE, n));
+}
+
+async function loadImageAsPng(src: string): Promise<{ dataUrl: string; aspect: number } | null> {
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  await new Promise<void>((resolve) => {
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    img.src = src;
+  });
+  const w = img.naturalWidth || 200;
+  const h = img.naturalHeight || 200;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  try {
+    ctx.drawImage(img, 0, 0, w, h);
+    return { dataUrl: canvas.toDataURL("image/png"), aspect: w / h };
+  } catch {
+    return null;
+  }
+}
 
 function fixMathSymbols(text: string) {
   return text
@@ -71,8 +106,16 @@ export default function WorksheetView() {
   }, [worksheet?.worksheetType, id, setLocation]);
 
   useEffect(() => {
-    if (worksheet && worksheet.rating === null && worksheet.worksheetType !== "brain_flex") {
-      setRatingDialogOpen(true);
+    if (
+      worksheet &&
+      worksheet.rating === null &&
+      worksheet.worksheetType !== "brain_flex"
+    ) {
+      const timer = setTimeout(() => {
+        setRatingDialogOpen(true);
+      }, 8000); // 8 seconds
+  
+      return () => clearTimeout(timer);
     }
   }, [worksheet]);
 
@@ -111,24 +154,37 @@ export default function WorksheetView() {
     window.print();
   };
 
-  const addWatermarkToPage = (pdf: any, watermarkImg: string, pdfWidth: number, pdfHeight: number, imgAspect: number) => {
-    if (!showWatermark) return;
-    const wmMaxSize = 120;
-    let wmW: number, wmH: number;
-    if (imgAspect >= 1) {
-      wmW = wmMaxSize;
-      wmH = wmMaxSize / imgAspect;
+  const addWatermarkToPage = (pdf: any, wm: PdfWatermark, pdfWidth: number, pdfHeight: number) => {
+    if (!wm) return;
+    if (wm.kind === "image") {
+      const wmMaxSize = (120 * wm.size) / 100;
+      let wmW: number, wmH: number;
+      if (wm.aspect >= 1) {
+        wmW = wmMaxSize;
+        wmH = wmMaxSize / wm.aspect;
+      } else {
+        wmH = wmMaxSize;
+        wmW = wmMaxSize * wm.aspect;
+      }
+      const wmX = (pdfWidth - wmW) / 2;
+      const wmY = (pdfHeight - wmH) / 2;
+      pdf.saveGraphicsState();
+      pdf.setGState(new (pdf as any).GState({ opacity: 0.06 }));
+      pdf.addImage(wm.dataUrl, "PNG", wmX, wmY, wmW, wmH);
+      pdf.restoreGraphicsState();
     } else {
-      wmH = wmMaxSize;
-      wmW = wmMaxSize * imgAspect;
+      pdf.saveGraphicsState();
+      pdf.setGState(new (pdf as any).GState({ opacity: 0.08 }));
+      pdf.setTextColor(60, 60, 60);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize((40 * wm.size) / 100);
+      pdf.text(wm.text, pdfWidth / 2, pdfHeight / 2, {
+        align: "center",
+        angle: 30,
+        baseline: "middle",
+      } as any);
+      pdf.restoreGraphicsState();
     }
-    const wmX = (pdfWidth - wmW) / 2;
-    const wmY = (pdfHeight - wmH) / 2;
-    pdf.saveGraphicsState();
-    const gState = new (pdf as any).GState({ opacity: 0.06 });
-    pdf.setGState(gState);
-    pdf.addImage(watermarkImg, "PNG", wmX, wmY, wmW, wmH);
-    pdf.restoreGraphicsState();
   };
 
   const renderBlockToPdf = async (
@@ -139,8 +195,7 @@ export default function WorksheetView() {
     pdfHeight: number,
     scaleFactor: number,
     usableHeightMm: number,
-    watermarkDataUrl: string,
-    watermarkAspect: number,
+    wm: PdfWatermark,
     isFirstBlock: boolean
   ) => {
     const sourcePageHeightPx = usableHeightMm / scaleFactor;
@@ -167,9 +222,7 @@ export default function WorksheetView() {
       const renderedHeight = sh * scaleFactor;
       pdf.addImage(pageImgData, "PNG", margin, margin, usableWidth, renderedHeight);
 
-      if (watermarkDataUrl) {
-        addWatermarkToPage(pdf, watermarkDataUrl, pdf.internal.pageSize.getWidth(), pdfHeight, watermarkAspect);
-      }
+      addWatermarkToPage(pdf, wm, pdf.internal.pageSize.getWidth(), pdfHeight);
     }
   };
 
@@ -193,31 +246,29 @@ export default function WorksheetView() {
       const margin = 8;
       const usableWidth = pdfWidth - margin * 2;
 
-      let watermarkDataUrl = "";
-      let watermarkAspect = 1;
-      if (showWatermark) {
-        const wmImg = new Image();
-        wmImg.crossOrigin = "anonymous";
-        await new Promise<void>((resolve) => {
-          wmImg.onload = () => resolve();
-          wmImg.onerror = () => resolve();
-          wmImg.src = logoImage;
-        });
-        const wmCanvas = document.createElement("canvas");
-        wmCanvas.width = wmImg.naturalWidth || 200;
-        wmCanvas.height = wmImg.naturalHeight || 200;
-        watermarkAspect = wmCanvas.width / wmCanvas.height;
-        const wmCtx = wmCanvas.getContext("2d");
-        if (wmCtx) {
-          wmCtx.drawImage(wmImg, 0, 0);
-          watermarkDataUrl = wmCanvas.toDataURL("image/png");
+      const wmConfig = (worksheet?.content as any)?.watermark as WorksheetWatermark | undefined;
+      const customMode = wmConfig?.mode === "custom";
+      const customLogo = customMode && wmConfig?.logo ? String(wmConfig.logo) : "";
+      const customText = customMode && wmConfig?.text ? String(wmConfig.text).trim() : "";
+      const customActive = customMode && (customLogo || customText);
+      const wmSize = clampWatermarkSize(wmConfig?.size);
+
+      let pdfWatermark: PdfWatermark = null;
+      if (customActive) {
+        if (customLogo) {
+          const loaded = await loadImageAsPng(customLogo);
+          if (loaded) pdfWatermark = { kind: "image", dataUrl: loaded.dataUrl, aspect: loaded.aspect, size: wmSize };
+        } else {
+          pdfWatermark = { kind: "text", text: customText, size: wmSize };
         }
+      } else if (showWatermark) {
+        const loaded = await loadImageAsPng(logoImage);
+        if (loaded) pdfWatermark = { kind: "image", dataUrl: loaded.dataUrl, aspect: loaded.aspect, size: WATERMARK_MAX_SIZE };
       }
 
       const usableHeightMm = pdfHeight - margin * 2;
 
       const worksheetContent = element.querySelector("#worksheet-content") as HTMLElement;
-      const answerSheet = element.querySelector("#answer-sheet-content") as HTMLElement;
 
       if (worksheetContent) {
         const clone = worksheetContent.cloneNode(true) as HTMLElement;
@@ -251,47 +302,8 @@ export default function WorksheetView() {
           pdfHeight,
           wsScale,
           usableHeightMm,
-          watermarkDataUrl,
-          watermarkAspect,
+          pdfWatermark,
           true
-        );
-      }
-
-      if (answerSheet) {
-        const clone = answerSheet.cloneNode(true) as HTMLElement;
-        clone.style.position = "fixed";
-        clone.style.left = "-100000px";
-        clone.style.top = "0";
-        clone.style.width = `${a4WidthPx}px`;
-        clone.style.background = "#ffffff";
-        normalizeTextNodes(clone);
-        document.body.appendChild(clone);
-
-        let asCanvas: HTMLCanvasElement;
-        try {
-          asCanvas = await html2canvas(clone, {
-            scale: 2,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: "#ffffff",
-            windowWidth: a4WidthPx,
-            width: a4WidthPx,
-          });
-        } finally {
-          clone.remove();
-        }
-        const asScale = usableWidth / asCanvas.width;
-        await renderBlockToPdf(
-          asCanvas,
-          pdf,
-          margin,
-          usableWidth,
-          pdfHeight,
-          asScale,
-          usableHeightMm,
-          watermarkDataUrl,
-          watermarkAspect,
-          false
         );
       }
 

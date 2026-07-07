@@ -12,6 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Form,
   FormControl,
   FormField,
@@ -21,6 +28,7 @@ import {
 } from "@/components/ui/form";
 import { useLogin, useRegister, useUser } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
+import { USER_ROLES } from "@shared/schema";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -29,6 +37,7 @@ const loginSchema = z.object({
 
 const registerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
+  role: z.enum(USER_ROLES, { message: "Please select your role." }),
   email: z.string().email("Please enter a valid email"),
   mobile: z.string().regex(/^[0-9]{10}$/, "Mobile must be exactly 10 digits"),
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -65,7 +74,13 @@ export default function AuthPage() {
 
   const registerForm = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
-    defaultValues: { name: "", email: "", mobile: "", password: "", confirmPassword: "" },
+    defaultValues: {
+      name: "",
+      email: "",
+      mobile: "",
+      password: "",
+      confirmPassword: "",
+    },
   });
 
   const onLogin = (data: z.infer<typeof loginSchema>) => {
@@ -75,6 +90,7 @@ export default function AuthPage() {
   const onRegister = (data: z.infer<typeof registerSchema>) => {
     registerMutation.mutate({
       name: data.name,
+      role: data.role,
       email: data.email,
       mobile: data.mobile,
       password: data.password,
@@ -254,6 +270,33 @@ export default function AuthPage() {
                         <FormControl>
                           <Input placeholder="Your name" data-testid="input-register-name" {...field} />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={registerForm.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>I am a</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger
+                              className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl"
+                              data-testid="select-register-role"
+                            >
+                              <SelectValue placeholder="Select your role" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {USER_ROLES.map((role) => (
+                              <SelectItem key={role} value={role}>
+                                {role}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}

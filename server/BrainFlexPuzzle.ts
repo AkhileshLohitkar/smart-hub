@@ -1,16 +1,20 @@
-import { pickBrainflexWords } from "./utils/brainflexWords";
+import { pickBrainflexWordsForContext, getBrainflexWordClue } from "./utils/brainflexWords";
 import { getWordMeaning } from "./utils/wordMeanings";
 import { generateCrosswordEngine } from "./utils/generateCrossword";
 import { generateSudoku6x6, isSudoku6x6Matrix } from "@shared/sudoku6x6";
+import {
+  type BrainFlexContext,
+  shuffle,
+  pickRiddles,
+  pickBrainTeasers,
+  getContextGradeBand,
+} from "./utils/brainflexContext";
+import { getGradeWordLimits } from "./utils/brainflexCurriculum";
 
 /**
  * Brain-Flex puzzle generation only (isolated from normal worksheet AI flow).
  * Stored shape: { title, theme?, graphicEmojis?, sections: { type, data }[] }
  */
-
-function shuffle<T>(arr: T[]): T[] {
-  return [...arr].sort(() => Math.random() - 0.5);
-}
 
 export function normalizeBrainFlexTypeId(raw: string): string | null {
   const t = String(raw).trim().replace(/-/g, "_").toLowerCase();
@@ -27,21 +31,6 @@ export function normalizeBrainFlexTypeId(raw: string): string | null {
   const allowed = new Set(["word_search", "riddles", "sudoku", "boggles", "brain_teasers", "crossword"]);
   return allowed.has(mapped) ? mapped : null;
 }
-
-const CROSSWORD_WORD_POOL = [
-  "MATH",
-  "LOGIC",
-  "BRAIN",
-  "PUZZLE",
-  "THINK",
-  "FOCUS",
-  "LEARN",
-  "SMART",
-  "NUMBER",
-  "CODE",
-  "GRID",
-  "SOLVE",
-];
 
 const CROSSWORD_CLUE_MAP: Record<string, string> = {
   MATH: "Subject with numbers, shapes, and equations",
@@ -201,17 +190,20 @@ function placeInEmptyRun(grid: string[][], word: string): CrosswordPlaced | null
  * Full crossword: 10×10, intersecting / random placement, filler letters in empty cells.
  * Always returns non-empty grid + clues (Brain-Flex only — not wired to /api/worksheets/*).
  */
-export function generateCrossword(): CrosswordPayload {
-  const clueForWord = (w: string) => CROSSWORD_CLUE_MAP[String(w || "").toUpperCase()] ?? getWordMeaning(w);
+export async function generateCrossword(ctx?: BrainFlexContext): Promise<CrosswordPayload> {
+  const clueForWord = (w: string) => CROSSWORD_CLUE_MAP[String(w || "").toUpperCase()] ?? getBrainflexWordClue(w);
 
-  // Strong engine: intersection-first placement + collision checks + numbering + across/down extraction.
-  const candidateWords = pickBrainflexWords(18, { minLen: 4, maxLen: 8 }).map((w) => w.toUpperCase());
+  const limits = getGradeWordLimits(getContextGradeBand(ctx));
+  const candidateWords = (
+    await pickBrainflexWordsForContext(24, ctx, { minLen: limits.minLen, maxLen: Math.min(8, limits.maxLen) })
+  ).map((w) => w.toUpperCase());
+
   const built = generateCrosswordEngine({
     candidateWords,
     clueForWord,
-    maxPlacedWords: 8,
+    maxPlacedWords: limits.crosswordMax,
     minIntersectionsPerWord: 1,
-    maxRetries: 8,
+    maxRetries: 10 + Math.floor(Math.random() * 6),
   });
 
   const placed = (built.answers ?? []).map((a) => ({
@@ -232,7 +224,7 @@ export function generateCrossword(): CrosswordPayload {
   const payload: CrosswordPayload = {
     grid: built.grid,
     words: built.wordBank,
-    wordsDetailed: built.wordBank.map((w) => ({ word: w, meaning: getWordMeaning(w) })),
+    wordsDetailed: built.wordBank.map((w) => ({ word: w, meaning: getBrainflexWordClue(w) })),
     clues: clueEntries,
     crosswordAnswers: built.wordBank,
     answers: placed,
@@ -247,14 +239,15 @@ export function generateCrossword(): CrosswordPayload {
   return payload;
 }
 
-export function generateWordSearch(): {
+export async function generateWordSearch(ctx?: BrainFlexContext): Promise<{
   size: number;
   grid: string[][];
   words: string[];
   clues: string[];
   wordsDetailed?: Array<{ word: string; meaning: string }>;
   answers?: Array<{ word: string; row: number; col: number; direction: string; positions: Array<{ row: number; col: number }> }>;
-} {
+}> {
+  const limits = getGradeWordLimits(getContextGradeBand(ctx));
   const TARGET_WORD_COUNT = 6;
 
   // Student-friendly directions ONLY:
@@ -344,14 +337,18 @@ export function generateWordSearch(): {
     return { ok: false };
   };
 
-  // Try multiple full regenerations to guarantee correctness.
-  for (let generationAttempt = 0; generationAttempt < 40; generationAttempt++) {
-    // Pick meaningful words only (from bank), but ensure they fit in the chosen grid.
-    // Use a grid size large enough for typical words while keeping PDF readable.
+  // Try multiple full regenerations to guarantee correctness and variety.
+  for (let generationAttempt = 0; generationAttempt < 50; generationAttempt++) {
     const size = 12;
-    let selectedWords = pickBrainflexWords(TARGET_WORD_COUNT * 2, { minLen: 4, maxLen: size });
+    let selectedWords = await pickBrainflexWordsForContext(TARGET_WORD_COUNT * 3, ctx, {
+      minLen: limits.minLen,
+      maxLen: Math.min(size, limits.maxLen),
+    });
     if (selectedWords.length < TARGET_WORD_COUNT) {
-      selectedWords = pickBrainflexWords(TARGET_WORD_COUNT * 3, { minLen: 4, maxLen: size });
+      selectedWords = await pickBrainflexWordsForContext(TARGET_WORD_COUNT * 5, ctx, {
+        minLen: limits.minLen,
+        maxLen: Math.min(size, limits.maxLen),
+      });
     }
     const candidates = shuffle(selectedWords)
       .map((w) => w.toUpperCase().replace(/\s+/g, ""))
@@ -391,8 +388,8 @@ export function generateWordSearch(): {
       size,
       grid,
       words: finalWords,
-      clues: finalWords.map((w) => getWordMeaning(w)),
-      wordsDetailed: finalWords.map((w) => ({ word: w, meaning: getWordMeaning(w) })),
+      clues: finalWords.map((w) => getBrainflexWordClue(w)),
+      wordsDetailed: finalWords.map((w) => ({ word: w, meaning: getBrainflexWordClue(w) })),
       answers,
     };
   }
@@ -403,37 +400,12 @@ export function generateWordSearch(): {
   return { size, grid, words: [], clues: [], wordsDetailed: [], answers: [] };
 }
 
-export function generateRiddles(): Array<{ question: string; answer: string }> {
-  const riddles = [
-    { question: "What has keys but can't open locks?", answer: "Keyboard" },
-    { question: "What has a neck but no head?", answer: "Bottle" },
-    { question: "What gets wetter as it dries?", answer: "Towel" },
-    { question: "What has hands but cannot clap?", answer: "Clock" },
-    { question: "What runs but never walks?", answer: "Water" },
-    { question: "What has an eye but cannot see?", answer: "Needle" },
-    { question: "What can travel around the world while staying in a corner?", answer: "A stamp" },
-    { question: "What has to be broken before you can use it?", answer: "An egg" },
-    { question: "The more you take, the more you leave behind. What are they?", answer: "Footsteps" },
-    { question: "What begins with T, ends with T, and has T in it?", answer: "A teapot" },
-  ];
-  return shuffle(riddles).slice(0, 3);
+export async function generateRiddles(ctx?: BrainFlexContext): Promise<Array<{ question: string; answer: string }>> {
+  return pickRiddles(ctx, 3);
 }
 
-export function generateBrainTeasers(): Array<{ question: string; answer: string }> {
-  const a = 1 + Math.floor(Math.random() * 9);
-  const b = 1 + Math.floor(Math.random() * 9);
-  const c = 1 + Math.floor(Math.random() * 9);
-  const teasers = [
-    { question: "If 3 cats catch 3 mice in 3 minutes, how many for 100 mice?", answer: "3 cats" },
-    { question: "What comes next: 2, 4, 8, 16?", answer: "32" },
-    { question: "I speak without a mouth. What am I?", answer: "Echo" },
-    { question: "What has one eye but cannot see?", answer: "Needle" },
-    { question: "2 cats catch 2 mice in 2 min, how many for 10 mice in 10 min?", answer: "2 cats" },
-    { question: "1, 3, 6, 10, ?", answer: "15" },
-    { question: "A farmer has 17 sheep; all but 9 run away. How many left?", answer: "9" },
-    { question: `What is ${a} * ${b} + ${c}?`, answer: String(a * b + c) },
-  ];
-  return shuffle(teasers).slice(0, 3);
+export async function generateBrainTeasers(ctx?: BrainFlexContext): Promise<Array<{ question: string; answer: string }>> {
+  return pickBrainTeasers(ctx, 3);
 }
 
 export function generateSudoku() {
@@ -454,31 +426,34 @@ function scrambleWord(word: string): string {
   return scrambled;
 }
 
-export function generateBoggles(): Array<{ scrambled: string; original: string; answer: string; hint: string; meaning?: string }> {
-  // Only real words with meanings.
-  const selected = pickBrainflexWords(5, { minLen: 4, maxLen: 12 });
+export async function generateBoggles(ctx?: BrainFlexContext): Promise<Array<{ scrambled: string; original: string; answer: string; hint: string; meaning?: string }>> {
+  const limits = getGradeWordLimits(getContextGradeBand(ctx));
+  const selected = await pickBrainflexWordsForContext(5, ctx, {
+    minLen: limits.minLen,
+    maxLen: limits.maxLen,
+  });
   return selected.map((word) => {
     const original = word.toUpperCase();
     const scrambled = scrambleWord(original);
-    return { scrambled, original, answer: original, hint: "Unscramble", meaning: getWordMeaning(original) };
+    return { scrambled, original, answer: original, hint: "Unscramble", meaning: getBrainflexWordClue(original) };
   });
 }
 
 /** Returns payload for one normalized puzzle type (data only). */
-export function generatePuzzle(normalizedType: string): unknown | null {
+export async function generatePuzzle(normalizedType: string, ctx?: BrainFlexContext): Promise<unknown | null> {
   switch (normalizedType) {
     case "word_search":
-      return generateWordSearch();
+      return generateWordSearch(ctx);
     case "riddles":
-      return generateRiddles();
+      return generateRiddles(ctx);
     case "brain_teasers":
-      return generateBrainTeasers();
+      return generateBrainTeasers(ctx);
     case "sudoku":
       return generateSudoku();
     case "boggles":
-      return generateBoggles();
+      return generateBoggles(ctx);
     case "crossword":
-      return generateCrossword();
+      return generateCrossword(ctx);
     default:
       return null;
   }
@@ -511,7 +486,7 @@ export type BrainFlexSection = { type: string; data: unknown };
  * Build worksheet JSON: sections in puzzle order, plus top-level `crossword` when that type is selected.
  * Crossword is generated inline so it always appears and is never dropped by layout failures.
  */
-export function brainFlexContentFromSelection(puzzleTypeIds: string[]) {
+export async function brainFlexContentFromSelection(puzzleTypeIds: string[], ctx?: BrainFlexContext) {
   const sections: BrainFlexSection[] = [];
   let crossword: CrosswordPayload | undefined;
 
@@ -522,12 +497,12 @@ export function brainFlexContentFromSelection(puzzleTypeIds: string[]) {
       continue;
     }
     if (n === "crossword") {
-      crossword = generateCrossword();
+      crossword = await generateCrossword(ctx);
       console.log("CROSSWORD DATA:", crossword);
       sections.push({ type: "crossword", data: crossword });
       continue;
     }
-    const data = generatePuzzle(n);
+    const data = await generatePuzzle(n, ctx);
     if (isEmptyPayload(n, data)) {
       console.warn("[BrainFlexPuzzle] empty data for type:", n, raw);
       continue;
@@ -542,4 +517,73 @@ export function brainFlexContentFromSelection(puzzleTypeIds: string[]) {
     sections,
     crossword,
   };
+}
+
+/** Collect uppercase words from generated sections for de-duplication across runs. */
+export function extractBrainFlexUsedWords(content: {
+  sections?: BrainFlexSection[];
+  crossword?: CrosswordPayload;
+}): string[] {
+  const out = new Set<string>();
+  const add = (w: unknown) => {
+    const u = String(w || "").toUpperCase().trim();
+    if (/^[A-Z]{3,}$/.test(u)) out.add(u);
+  };
+
+  for (const section of content.sections ?? []) {
+    const data = section.data as Record<string, unknown> | unknown[] | null;
+    if (!data) continue;
+    if (section.type === "word_search" && typeof data === "object" && !Array.isArray(data)) {
+      for (const w of (data as { words?: string[] }).words ?? []) add(w);
+    }
+    if (section.type === "crossword" && typeof data === "object" && !Array.isArray(data)) {
+      const c = data as CrosswordPayload;
+      for (const w of c.crosswordAnswers ?? c.words ?? []) add(w);
+    }
+    if (section.type === "boggles" && Array.isArray(data)) {
+      for (const item of data as Array<{ original?: string; answer?: string }>) {
+        add(item.original ?? item.answer);
+      }
+    }
+  }
+
+  if (content.crossword) {
+    for (const w of content.crossword.crosswordAnswers ?? content.crossword.words ?? []) add(w);
+  }
+
+  return [...out];
+}
+
+function normQuestion(q: string): string {
+  return String(q || "").toLowerCase().trim().replace(/\s+/g, " ");
+}
+
+/** Collect riddle questions from generated sections for de-duplication. */
+export function extractBrainFlexUsedRiddles(content: {
+  sections?: BrainFlexSection[];
+}): string[] {
+  const out: string[] = [];
+  for (const section of content.sections ?? []) {
+    if (section.type !== "riddles" || !Array.isArray(section.data)) continue;
+    for (const item of section.data as Array<{ question?: string }>) {
+      const q = normQuestion(String(item.question || ""));
+      if (q) out.push(q);
+    }
+  }
+  return out;
+}
+
+/** Collect brain teaser questions from generated sections for de-duplication. */
+export function extractBrainFlexUsedBrainTeasers(content: {
+  sections?: BrainFlexSection[];
+}): string[] {
+  const out: string[] = [];
+  for (const section of content.sections ?? []) {
+    if (section.type !== "brain_teasers" || !Array.isArray(section.data)) continue;
+    for (const item of section.data as Array<{ question?: string }>) {
+      const q = normQuestion(String(item.question || ""));
+      if (q) out.push(q);
+    }
+  }
+  return out;
 }

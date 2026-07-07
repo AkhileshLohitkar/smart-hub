@@ -10,6 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Link, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import {
+  BRAIN_FLEX_RESTRICTED_SUBJECT_MESSAGE,
+  isBrainFlexRestrictedSubject,
+} from "@shared/brainFlexRestrictedSubjects";
 
 const PUZZLE_TYPES = [
   { id: "sudoku", name: "Sudoku", description: "Number grid logic", icon: "🔢" },
@@ -110,6 +114,7 @@ export default function BrainFlexPuzzle() {
   const selectedPuzzleData = PUZZLE_TYPES.filter((puzzle) => selectedPuzzles.includes(puzzle.id));
   const selectedPuzzleEmojis = selectedPuzzleData.map((puzzle) => puzzle.icon).join(" ");
   const boardToSend = selectedBoard;
+  const subjectRestricted = isBrainFlexRestrictedSubject(curriculumSubject);
 
   const togglePuzzle = (puzzleId: string) => {
     setSelectedPuzzles((prev) =>
@@ -121,6 +126,9 @@ export default function BrainFlexPuzzle() {
     mutationFn: async () => {
       if (!selectedGrade || selectedPuzzles.length === 0) {
         throw new Error("Select a grade and at least one puzzle type.");
+      }
+      if (isBrainFlexRestrictedSubject(curriculumSubject)) {
+        throw new Error(BRAIN_FLEX_RESTRICTED_SUBJECT_MESSAGE);
       }
       const res = await apiRequest("POST", "/api/brain-flex/generate", {
         className: selectedGrade,
@@ -135,6 +143,7 @@ export default function BrainFlexPuzzle() {
     onSuccess: (data: any) => {
       console.log("BrainFlex Response:", data);
       queryClient.invalidateQueries({ queryKey: ["/api/user/worksheets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
       if (data?.id) {
         setLocation(`/brain-flex/${data.id}`);
       } else {
@@ -290,6 +299,11 @@ export default function BrainFlexPuzzle() {
               <p className=" italic text-xs text-gray-700 dark:text-gray-400 mt-3">
                 Leave blank for mixed curriculum puzzles, or fill in to get subject-specific word searches, riddles & brain teasers.
               </p>
+              {subjectRestricted ? (
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-3">
+                  {BRAIN_FLEX_RESTRICTED_SUBJECT_MESSAGE}
+                </p>
+              ) : null}
             </Card>
 
             <Card className={`p-6 ${DARK_CARD}`}>
@@ -460,7 +474,12 @@ export default function BrainFlexPuzzle() {
                   </div>
                   <Button
                     onClick={() => saveMutation.mutate()}
-                    disabled={!selectedGrade || selectedPuzzles.length === 0 || saveMutation.isPending}
+                    disabled={
+                      !selectedGrade ||
+                      selectedPuzzles.length === 0 ||
+                      saveMutation.isPending ||
+                      subjectRestricted
+                    }
                     className="mt-4 inline-flex h-[65px] w-fit shrink-0 self-start items-center justify-center gap-3.5 rounded-2xl border border-pink-300/40 bg-gradient-to-r from-purple-600 via-fuchsia-500 to-pink-500 px-4 text-[18px] font-semibold leading-none text-white shadow-[0_0_30px_rgba(236,72,153,0.55)] transition-all duration-200 hover:scale-[1.02] hover:brightness-110 disabled:opacity-50 dark:from-purple-600 dark:via-fuchsia-500 dark:to-pink-500 [&_svg]:size-[18px]"
                     data-testid="button-brainflex-generate"
                   >

@@ -1,14 +1,4 @@
-import { FREE_PLAN_WORKSHEETS_INCLUDED } from "@shared/worksheetLimits";
-
-/** Worksheet limits by plan display name (mirrors server pricing config). */
-const WORKSHEET_LIMIT_BY_PLAN_NAME: Record<string, number> = {
-  Free: FREE_PLAN_WORKSHEETS_INCLUDED,
-  Basic: FREE_PLAN_WORKSHEETS_INCLUDED,
-  "50 Worksheets": 50,
-  "100 Worksheets": 100,
-  "200 Worksheets": 200,
-  "400 Worksheets": 400,
-};
+import { getWorksheetLimitForPlanName, FREE_PLAN_WORKSHEETS_INCLUDED } from "@shared/pricing";
 
 export type ProfilePlanInfo = {
   displayName: string;
@@ -36,7 +26,7 @@ export function getProfilePlanInfo(user: {
   const displayName = isFree ? "Free" : planName || "Paid";
   const worksheetsIncluded = isFree
     ? FREE_PLAN_WORKSHEETS_INCLUDED
-    : WORKSHEET_LIMIT_BY_PLAN_NAME[planName] ?? 50;
+    : getWorksheetLimitForPlanName(planName) ?? FREE_PLAN_WORKSHEETS_INCLUDED;
 
   let status: ProfilePlanInfo["status"] = isFree ? "Free" : "Active";
   let expiresLabel: string | null = null;
@@ -66,7 +56,7 @@ export function getProfilePlanInfo(user: {
     status,
     expiresLabel,
     worksheetsIncluded,
-    worksheetsUsed: used,
+    worksheetsUsed: isFree ? Math.min(used, worksheetsIncluded) : used,
     worksheetsLeft,
     isFree,
   };

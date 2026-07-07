@@ -1,4 +1,6 @@
 import React, { useMemo } from "react";
+import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
+import { WorksheetQrCode } from "@/components/WorksheetQrCode";
 import { resolveWordSearchCluesFromData } from "@shared/wordSearchClues";
 import {
   SUDOKU_SIZE,
@@ -91,6 +93,7 @@ function sectionSheetLabel(type: string): string {
 }
 
 type WorksheetMeta = {
+  id?: number;
   content?: unknown;
   className?: string | null;
   difficulty?: string | null;
@@ -123,6 +126,16 @@ export type BrainFlexContentShape = {
   /** @deprecated legacy stored shape */
   puzzles?: any[];
 };
+
+const BF_SECTION_ORDER = ["sudoku", "word_search", "riddles", "boggles", "brain_teasers", "crossword"] as const;
+
+function sortBrainFlexSections(sections: BrainFlexSection[]): BrainFlexSection[] {
+  return [...sections].sort((a, b) => {
+    const ia = BF_SECTION_ORDER.indexOf(String(a.type || "") as (typeof BF_SECTION_ORDER)[number]);
+    const ib = BF_SECTION_ORDER.indexOf(String(b.type || "") as (typeof BF_SECTION_ORDER)[number]);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+}
 
 function normalizeSections(content: BrainFlexContentShape | undefined): BrainFlexSection[] {
   if (!content) return [];
@@ -190,20 +203,22 @@ function normalizeSections(content: BrainFlexContentShape | undefined): BrainFle
 export function BrainFlexRender({
   worksheet,
   content,
+  showAnswerKeyOnly = false,
 }: {
   worksheet?: WorksheetMeta | null;
   content?: BrainFlexContentShape | null;
+  showAnswerKeyOnly?: boolean;
 }) {
   const resolved = (content ?? worksheet?.content) as BrainFlexContentShape | undefined;
   const sections = useMemo(() => {
     const list = normalizeSections(resolved);
-    if (list.length > 0) return list;
+    if (list.length > 0) return sortBrainFlexSections(list);
     const cw = resolved?.crossword;
     const cwHasGrid = cw && Array.isArray(cw.grid) && cw.grid.length > 0;
     const cwHasWords = cw && Array.isArray(cw.words) && cw.words.length > 0;
     const cwHasClues = cw && Array.isArray(cw.clues) && cw.clues.length > 0;
     if (cw && cwHasGrid && (cwHasWords || cwHasClues)) {
-      return [{ type: "crossword", data: cw }];
+      return sortBrainFlexSections([{ type: "crossword", data: cw }]);
     }
     return [];
   }, [resolved]);
@@ -309,8 +324,21 @@ export function BrainFlexRender({
   const displayDifficulty = (meta?.difficulty?.trim() || "BEGINNER").toUpperCase();
   const refLine = meta?.serialNumber?.trim() || refFallback;
 
+  const brandHeader = (
+    <div className="flex justify-end mb-2 print:mb-1.5">
+      <img
+        src={logoImage}
+        alt="Qik Worksheets"
+        className="h-[84px] w-[84px] sm:h-[88px] sm:w-[88px] object-contain logo-vibrant print:h-[80px] print:w-[80px]"
+        draggable={false}
+        data-testid="brainflex-worksheet-logo"
+      />
+    </div>
+  );
+
   const headerBlock = (
     <div className="border-b-2 border-black pb-3 mb-4 print:pb-2 print:mb-3">
+      {brandHeader}
       <div className="flex justify-between items-start gap-3">
         <div className="flex-1 min-w-0">
           <h1
@@ -337,6 +365,11 @@ export function BrainFlexRender({
             {displayBoard} • {displayDifficulty}
           </p>
         </div>
+        {meta?.id ? (
+          <div className="shrink-0 print:block">
+            <WorksheetQrCode worksheetId={meta.id} />
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3 font-sans text-sm">
@@ -356,7 +389,7 @@ export function BrainFlexRender({
     </div>
   );
 
-  if (sections.length === 0) {
+  if (sections.length === 0 && !showAnswerKeyOnly) {
     return (
       <div className="text-black max-w-[800px] mx-auto p-4 bg-white print:max-w-none">
         {headerBlock}
@@ -365,11 +398,18 @@ export function BrainFlexRender({
     );
   }
 
-  return (
-    <div className="text-black max-w-[800px] mx-auto p-4 bg-white print:max-w-none">
-      {headerBlock}
+  if (sections.length === 0 && showAnswerKeyOnly) {
+    return (
+      <p className="text-sm text-gray-600">No answer key is available for this sheet.</p>
+    );
+  }
 
-      <div className="space-y-3">
+  return (
+    <div className="brain-flex-worksheet text-black max-w-[800px] mx-auto p-4 bg-white print:max-w-none print:p-0 print:mx-0">
+      {!showAnswerKeyOnly && headerBlock}
+
+      {!showAnswerKeyOnly && (
+      <div className="space-y-3 print:space-y-1">
         {sections.map((section, idx) => {
           const type = String(section.type || "");
           const title = sectionHeading(type);
@@ -377,21 +417,20 @@ export function BrainFlexRender({
           const letter = String.fromCharCode(65 + idx);
 
           return (
-            <div key={idx} className="break-inside-avoid" style={{ pageBreakInside: "avoid" as const }}>
-              <h3 className="font-bold text-base mb-2 text-black print:mb-1.5">
+            <div key={idx} className="bf-section">
+              <h3 className="font-bold text-base mb-2 text-black print:mb-0.5 print:text-sm">
                 {letter}. {sectionSheetLabel(type)}
               </h3>
               <div
-                className={`rounded-xl p-4 mb-3 border break-inside-avoid ${PUZZLE_COLORS[type] || "bg-gray-50 border-gray-200"}`}
-                style={{ pageBreakInside: "avoid" as const }}
+                className={`rounded-xl p-4 mb-3 border print:p-2 print:mb-1 print:rounded-lg ${PUZZLE_COLORS[type] || "bg-gray-50 border-gray-200"}`}
               >
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-2 print:mb-1 print:gap-1">
                 <span className="text-lg leading-none">{getIcon(type)}</span>
                 <h2 className={`font-display font-bold text-base ${TITLE_COLORS[type] || "text-slate-700"}`}>{title}</h2>
               </div>
 
               {type === "sudoku" && d && (
-                <div className="pl-1">{renderSudokuGrid(ensureSudokuPayload(d).grid)}</div>
+                <div className="pl-1 bf-keep-together">{renderSudokuGrid(ensureSudokuPayload(d).grid)}</div>
               )}
 
               {type === "word_search" && d && (
@@ -455,7 +494,7 @@ export function BrainFlexRender({
               )}
 
               {type === "crossword" && d && Array.isArray((d as any)?.grid) && (
-                <div className="pl-1 break-inside-avoid" style={{ pageBreakInside: "avoid" as const }}>
+                <div className="pl-1">
                   {(() => {
                     const grid = (d as any).grid as string[][];
                     const nums = (d as any).clueNumbersGrid as Array<Array<number | null>> | undefined;
@@ -490,11 +529,11 @@ export function BrainFlexRender({
                           : [];
 
                     return (
-                      <div className="space-y-5 break-inside-avoid">
-                        <div className="flex flex-col md:flex-row gap-6 items-start justify-center md:justify-start break-inside-avoid">
-                          <div className="w-full md:w-auto flex justify-center md:justify-start">
+                      <div className="space-y-5 print:space-y-2">
+                        <div className="flex flex-col md:flex-row gap-6 items-start justify-center md:justify-start print:gap-3">
+                          <div className="w-full md:w-auto flex justify-center md:justify-start bf-keep-together">
                             <div
-                              className="grid break-inside-avoid"
+                              className="grid bf-keep-together"
                               style={{
                                 // Smaller, print-friendly crossword cells (28px).
                                 gridTemplateColumns: `repeat(${cols}, 28px)`,
@@ -530,8 +569,8 @@ export function BrainFlexRender({
                             </div>
                           </div>
 
-                          <div className="w-full md:w-[240px] space-y-4">
-                            <div className="border border-emerald-200 rounded-2xl p-4 bg-emerald-50 break-inside-avoid w-full">
+                          <div className="w-full md:w-[240px] space-y-4 print:space-y-2">
+                            <div className="border border-emerald-200 rounded-2xl p-4 bg-emerald-50 w-full print:p-2 print:rounded-lg">
                               <h3 className="font-bold text-emerald-700 mb-2">Across</h3>
                               <div className="space-y-1.5 text-sm text-black leading-relaxed break-words">
                                 {(Array.isArray(across) ? across : []).map((clue, i) => (
@@ -543,7 +582,7 @@ export function BrainFlexRender({
                               </div>
                             </div>
 
-                            <div className="border border-sky-200 rounded-2xl p-4 bg-sky-50 break-inside-avoid w-full">
+                            <div className="border border-sky-200 rounded-2xl p-4 bg-sky-50 w-full print:p-2 print:rounded-lg">
                               <h3 className="font-bold text-sky-700 mb-2">Down</h3>
                               <div className="space-y-1.5 text-sm text-black leading-relaxed break-words">
                                 {(Array.isArray(down) ? down : []).map((clue, i) => (
@@ -557,7 +596,7 @@ export function BrainFlexRender({
                           </div>
                         </div>
 
-                        <div className="border-2 border-green-400 rounded-2xl p-4 bg-green-50 break-inside-avoid">
+                        <div className="border-2 border-green-400 rounded-2xl p-4 bg-green-50 print:p-2 print:rounded-lg">
                           <h3 className="font-bold text-green-700 text-center mb-3">Word Bank</h3>
                           <div className="grid grid-cols-2 gap-y-2 text-center text-xs font-semibold text-green-900">
                             {bank.map((w: any, i: number) => (
@@ -575,26 +614,25 @@ export function BrainFlexRender({
           );
         })}
       </div>
+      )}
 
-      <div className="mt-8 border-t-2 pt-5 break-inside-avoid">
-        <h2 className="text-xl font-bold text-blue-600 mb-2">Answer Key</h2>
-        <p className="text-xs text-gray-600 dark:text-gray-400 mb-4">Brain-Flex Challenge: Smart School Adventures</p>
-
-        <div className="space-y-4 text-sm">
+      {showAnswerKeyOnly && (
+      <div className="bf-answer-key">
+        <div className="space-y-4 print:space-y-2 text-sm">
           {sections.map((section, idx) => {
             const type = String(section.type || "");
             const d = section.data as any;
 
             return (
-              <div key={idx} className="break-inside-avoid" style={{ pageBreakInside: "avoid" as const }}>
+              <div key={idx} className="bf-section">
                 {type === "sudoku" && (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 break-inside-avoid">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 print:p-2">
                     <h4 className="font-semibold text-blue-700 mb-3 flex items-center gap-2">🧩 Sudoku Solution</h4>
 
                     {(() => {
                       const { solution } = ensureSudokuPayload(d);
                       return (
-                        <div className="inline-block border-2 border-gray-700 bg-white break-inside-avoid">
+                        <div className="inline-block border-2 border-gray-700 bg-white bf-keep-together">
                           {Array.from({ length: SUDOKU_SIZE }, (_, rowIndex) => (
                             <div key={rowIndex} className="flex">
                               {Array.from({ length: SUDOKU_SIZE }, (_, colIndex) => (
@@ -619,7 +657,7 @@ export function BrainFlexRender({
                 )}
 
                 {type === "word_search" && (d?.grid || d?.words) && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 break-inside-avoid">
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 print:p-2">
                     <h4 className="font-semibold text-yellow-700 mb-3 flex items-center gap-2">🔍 Word Search Solution</h4>
 
                     {(() => {
@@ -717,7 +755,7 @@ export function BrainFlexRender({
                       }
 
                       return (
-                        <div className="break-inside-avoid">
+                        <div className="bf-keep-together">
                           {renderWordSearchGrid(wordGrid, highlighted)}
 
                           {words.length > 0 && (
@@ -736,7 +774,7 @@ export function BrainFlexRender({
                 )}
 
                 {type === "riddles" && Array.isArray(d) && (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 break-inside-avoid">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 print:p-2">
                     <h4 className="font-semibold text-green-700 mb-2">🤔 Riddles Answers</h4>
 
                     {d.map((r, i) => (
@@ -748,7 +786,7 @@ export function BrainFlexRender({
                 )}
 
                 {type === "boggles" && Array.isArray(d) && (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 break-inside-avoid">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 print:p-2">
                     <h4 className="font-semibold text-red-600 mb-2">🔀 Unscramble Answers</h4>
 
                     {d.map((w, i) => (
@@ -760,7 +798,7 @@ export function BrainFlexRender({
                 )}
 
                 {type === "crossword" && d && Array.isArray(d?.grid) && (
-                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 break-inside-avoid">
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 print:p-2">
                     <h4 className="font-semibold text-indigo-700 mb-3 flex items-center gap-2">🧩 Crossword Solution</h4>
 
                     {(() => {
@@ -817,7 +855,7 @@ export function BrainFlexRender({
                       }
 
                       return (
-                        <div className="break-inside-avoid">
+                        <div className="bf-keep-together">
                           {(() => {
                             const isLetter = (ch: string) => ch !== "#" && ch !== "·" && ch !== "";
                             let minR = Infinity,
@@ -841,7 +879,7 @@ export function BrainFlexRender({
                             return (
                               <div className="flex justify-center md:justify-start">
                                 <div
-                                  className="grid break-inside-avoid"
+                                  className="grid bf-keep-together"
                                   style={{
                                     gridTemplateColumns: `repeat(${cols}, 2.25rem)`,
                                     gridTemplateRows: `repeat(${rows}, 2.25rem)`,
@@ -902,7 +940,7 @@ export function BrainFlexRender({
                 )}
 
                 {type === "brain_teasers" && Array.isArray(d) && (
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 break-inside-avoid">
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 print:p-2">
                     <h4 className="font-semibold text-purple-700 mb-2">🧠 Brain Teasers Answers</h4>
 
                     {d.map((t, i) => (
@@ -917,6 +955,7 @@ export function BrainFlexRender({
           })}
         </div>
       </div>
+      )}
     </div>
   );
 }

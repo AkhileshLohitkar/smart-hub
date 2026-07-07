@@ -12,6 +12,7 @@ import NotFound from "@/pages/not-found";
 import Landing from "@/pages/Landing";
 import AuthPage from "@/pages/AuthPage";
 import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 import Home from "@/pages/Home";
 import WorksheetView from "@/pages/WorksheetView";
 import History from "@/pages/History";
@@ -19,6 +20,7 @@ import ContentUpload from "@/pages/ContentUpload";
 import BrainFlexPuzzle from "@/pages/BrainFlexPuzzle";
 import BrainFlexPage from "@/pages/BrainFlexPage";
 import TestPrep from "@/pages/TestPrep";
+import QuestionPaperStudio from "@/pages/QuestionPaperStudio";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentCancel from "@/pages/PaymentCancel";
 import PaymentRecover from "@/pages/PaymentRecover";
@@ -29,6 +31,8 @@ import RefundPolicy from "@/pages/RefundPolicy";
 import ContactUs from "@/pages/ContactUs";
 import Admin from "@/pages/Admin";
 import Pricing from "@/pages/Pricing";
+import FaqPage from "@/pages/FaqPage";
+import AnswerKeyPage from "@/pages/AnswerKeyPage";
 import Footer from "@/components/Footer";
 
 function PostHogInitializer() {
@@ -57,6 +61,7 @@ function Router() {
       <Route path="/" component={Landing} />
       <Route path="/auth" component={AuthPage} />
       <Route path="/forgot-password" component={ForgotPassword} />
+      <Route path="/reset-password" component={ResetPassword} />
       <Route path="/new-worksheet" component={Home} />
       <Route path="/dashboard">
         <Redirect to="/new-worksheet" />
@@ -68,10 +73,13 @@ function Router() {
       <Route path="/brain-flex/:id" component={BrainFlexPage} />
       <Route path="/brain-flex" component={BrainFlexPuzzle} />
       <Route path="/test-prep" component={TestPrep} />
+      <Route path="/question-paper-studio" component={QuestionPaperStudio} />
       <Route path="/payment/success" component={PaymentSuccess} />
       <Route path="/payment/cancel" component={PaymentCancel} />
       <Route path="/payment/recover" component={PaymentRecover} />
       <Route path="/pricing" component={Pricing} />
+      <Route path="/faq" component={FaqPage} />
+      <Route path="/answer-key/:id" component={AnswerKeyPage} />
       <Route path="/about" component={AboutUs} />
       <Route path="/terms" component={TermsAndConditions} />
       <Route path="/privacy" component={PrivacyPolicy} />
