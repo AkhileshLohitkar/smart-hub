@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { normalizeTitleCaseField } from "@/lib/titleCase";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -206,12 +207,16 @@ export default function ContentUpload() {
     }
     setIsUploading(true);
     try {
+      const normalizedSubject = normalizeTitleCaseField(subject);
+      const normalizedTopic = normalizeTitleCaseField(topic);
+      setSubject(normalizedSubject);
+      setTopic(normalizedTopic);
       const payload = {
         board,
         className,
-        subject,
+        subject: normalizedSubject,
         chapter,
-        topic,
+        topic: normalizedTopic,
         sourceDescription,
         images: images.map((img) => ({ base64: img.dataUrl, mimeType: img.mimeType })),
       };
@@ -241,8 +246,18 @@ export default function ContentUpload() {
     }
     setIsUploading(true);
     try {
+      const normalizedSubject = normalizeTitleCaseField(subject);
+      const normalizedTopic = normalizeTitleCaseField(topic);
+      setSubject(normalizedSubject);
+      setTopic(normalizedTopic);
       await apiRequest("POST", "/api/content/save-text", {
-        board, className, subject, chapter, topic, text: typedText, sourceDescription,
+        board,
+        className,
+        subject: normalizedSubject,
+        chapter,
+        topic: normalizedTopic,
+        text: typedText,
+        sourceDescription,
       });
       qc.invalidateQueries({ queryKey: ["/api/content"] });
       toast({ title: "Notes saved!", description: "Your text has been saved and will be used when generating worksheets for this topic." });
@@ -305,6 +320,7 @@ export default function ContentUpload() {
           placeholder="e.g. Mathematics, Science, English"
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
+          onBlur={() => setSubject(normalizeTitleCaseField(subject))}
           className="h-10"
           data-testid="input-upload-subject"
         />
@@ -327,6 +343,7 @@ export default function ContentUpload() {
             placeholder="e.g. Photosynthesis"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
+            onBlur={() => setTopic(normalizeTitleCaseField(topic))}
             className="h-10"
             data-testid="input-upload-topic"
           />

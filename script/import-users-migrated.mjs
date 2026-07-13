@@ -51,13 +51,18 @@ function parseTimestamp(v) {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-function inferPlanName(plan) {
+function inferPlanName(plan, billingCycle) {
   const p = (plan || "free").toLowerCase();
+  const cycle = (billingCycle || "").toLowerCase();
+  const yearly = cycle === "yearly" || cycle === "annual";
+  const suffix = yearly ? " Yearly" : " Monthly";
+
   if (p === "free") return "Free";
-  if (p.includes("starter")) return "Starter";
-  if (p.includes("family")) return "Growth";
-  if (p === "no_watermark") return "Starter Pro";
-  if (p === "paid") return "Starter";
+  if (p.includes("starter") && !p.includes("pro")) return `Starter${suffix}`;
+  if (p.includes("family") || p === "growth") return `Growth${suffix}`;
+  if (p === "no_watermark" || p.includes("starter pro")) return `Starter Pro${suffix}`;
+  if (p.includes("growth pro")) return `Growth Pro${suffix}`;
+  if (p === "paid") return `Starter${suffix}`;
   return plan.charAt(0).toUpperCase() + plan.slice(1);
 }
 
@@ -77,7 +82,8 @@ function mapRow(row) {
 
   const plan = cleanValue(row.plan) || "free";
   const planType = cleanValue(row.plan_type) || "worksheet";
-  const planName = cleanValue(row.plan_name) || inferPlanName(plan);
+  const billingCycle = cleanValue(row.billing_cycle);
+  const planName = cleanValue(row.plan_name) || inferPlanName(plan, billingCycle);
 
   return {
     id: parseIntOrNull(row.id),
@@ -92,7 +98,7 @@ function mapRow(row) {
     plan,
     plan_type: planType,
     plan_name: planName,
-    billing_cycle: cleanValue(row.billing_cycle),
+    billing_cycle: billingCycle,
     student_count: parseIntOrNull(row.student_count, null),
     plan_expires_at: parseTimestamp(row.plan_expires_at),
     worksheets_generated: parseIntOrNull(row.worksheets_generated, 0),

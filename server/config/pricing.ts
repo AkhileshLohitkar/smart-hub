@@ -6,6 +6,7 @@ import {
   TOP_UP_PLAN_ORDER,
   getPlanAmountInr,
   getWorksheetLimitForPlanName,
+  planNameMatchesBasePlan,
   type BillingCycle,
   type PaidWorksheetPlanKey,
   type PlanType,
@@ -21,6 +22,12 @@ export {
   TOP_UP_PLAN_ORDER,
   getPlanAmountInr,
   getWorksheetLimitForPlanName,
+  getSubscriptionPlanName,
+  getWorksheetQuotaPeriod,
+  planNameMatchesBasePlan,
+  resolvePaidPlanKeyFromPlanName,
+  inferBillingCycleFromPlanName,
+  stripPlanCycleSuffix,
   buildPricingApiPayload,
   type PlanType,
 } from "@shared/pricing";
@@ -58,6 +65,7 @@ export function getWorksheetLimitForUser(user: {
   plan?: string | null;
   planType?: string | null;
   planName?: string | null;
+  billingCycle?: string | null;
   topUpWorksheetsBalance?: number | null;
 } | null | undefined): number | null {
   if (!user) return null;
@@ -68,7 +76,7 @@ export function getWorksheetLimitForUser(user: {
 
   if (user.plan !== "paid") return null;
 
-  const baseLimit = getWorksheetLimitForPlanName(user.planName);
+  const baseLimit = getWorksheetLimitForPlanName(user.planName, user.billingCycle);
   if (baseLimit == null) return null;
 
   const topUp = Math.max(0, user.topUpWorksheetsBalance ?? 0);
@@ -85,8 +93,7 @@ export function userEligibleForTopUp(
 ): boolean {
   if (!user || user.plan !== "paid") return false;
   if (user.planExpiresAt && new Date(user.planExpiresAt) < new Date()) return false;
-  const expectedName = PRICING_PLANS[basePlanKey].name;
-  return (user.planName || "").trim().toLowerCase() === expectedName.toLowerCase();
+  return planNameMatchesBasePlan(user.planName, basePlanKey);
 }
 
 export function userEligibleForUniversalTopUp(
@@ -104,6 +111,7 @@ export function hasUserReachedWorksheetLimit(user: {
   plan?: string | null;
   planType?: string | null;
   planName?: string | null;
+  billingCycle?: string | null;
   worksheetsGenerated?: number | null;
   topUpWorksheetsBalance?: number | null;
 } | null | undefined): boolean {

@@ -14,6 +14,7 @@ export type ProfileMenuUser = {
   email?: string;
   plan: string;
   planName?: string;
+  billingCycle?: string | null;
   planExpiresAt?: string | Date | null;
   worksheetsGenerated?: number | null;
 };
@@ -157,7 +158,7 @@ export function ProfileMenuDropdown({
                 <dd className="text-gray-900 dark:text-gray-200 font-medium">
                   {planInfo.isFree
                     ? `Limit: ${planInfo.worksheetsIncluded}`
-                    : `Up to ${planInfo.worksheetsIncluded} / month`}
+                    : `Up to ${planInfo.worksheetsIncluded} / ${planInfo.quotaPeriod ?? "month"}`}
                 </dd>
               </div>
               {planInfo.expiresLabel && (

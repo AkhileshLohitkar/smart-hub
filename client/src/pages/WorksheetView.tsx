@@ -3,6 +3,7 @@ import { useParams, Link, useLocation } from "wouter";
 import { useWorksheet } from "@/hooks/use-worksheets";
 import { useUser } from "@/hooks/use-auth";
 import { WorksheetRender } from "@/components/WorksheetRender";
+import { QuestionPaperRender } from "@/components/QuestionPaperRender";
 import { StarRating } from "@/components/StarRating";
 import { ArrowLeft, Printer, Download, Loader2, MessageSquare, Camera, Sparkles } from "lucide-react";
 import logoImage from "@assets/IMG_6540_(1)_1772323458180.png";
@@ -569,7 +570,17 @@ export default function WorksheetView() {
           className="print:shadow-none"
           ref={worksheetRef}
         >
-          <WorksheetRender worksheet={worksheet} showWatermark={showWatermark} />
+          {worksheet.worksheetType === "question_paper" &&
+          worksheet.content &&
+          typeof worksheet.content === "object" &&
+          (worksheet.content as any).paper ? (
+            <QuestionPaperRender
+              paper={(worksheet.content as any).paper}
+              answerKey={Array.isArray((worksheet.content as any).answerKey) ? (worksheet.content as any).answerKey : []}
+            />
+          ) : (
+            <WorksheetRender worksheet={worksheet} showWatermark={showWatermark} />
+          )}
         </motion.div>
       </main>
     </div>

@@ -10,6 +10,8 @@ import { openai } from "./openaiClient";
 import { buildPricingApiPayload } from "@shared/pricing";
 import {
   pricingPlans,
+  resolvePaidPlanKeyFromPlanName,
+  inferBillingCycleFromPlanName,
   type BillingCycle,
   type PlanType,
 } from "./config/pricing";
@@ -213,15 +215,21 @@ export async function registerRoutes(
 
     const resolveAmount = (cycle: BillingCycle | undefined): number | null => {
       const isYearly = cycle === "yearly";
-      if (planName === pricingPlans.free_2.name) return 0;
-      if (planName === pricingPlans.w50.name) return isYearly ? (pricingPlans.w50.yearlyDiscountedPrice ?? pricingPlans.w50.yearlyPrice) : pricingPlans.w50.monthlyPrice;
-      if (planName === pricingPlans.w100.name) return isYearly ? (pricingPlans.w100.yearlyDiscountedPrice ?? pricingPlans.w100.yearlyPrice) : pricingPlans.w100.monthlyPrice;
-      if (planName === pricingPlans.w200.name) return isYearly ? (pricingPlans.w200.yearlyDiscountedPrice ?? pricingPlans.w200.yearlyPrice) : pricingPlans.w200.monthlyPrice;
-      if (planName === pricingPlans.w400.name) return isYearly ? (pricingPlans.w400.yearlyDiscountedPrice ?? pricingPlans.w400.yearlyPrice) : pricingPlans.w400.monthlyPrice;
-      return null;
+      if (
+        planName === pricingPlans.free_2.name ||
+        planName.trim().toLowerCase() === "free"
+      ) {
+        return 0;
+      }
+      const paidKey = resolvePaidPlanKeyFromPlanName(planName);
+      if (!paidKey) return null;
+      return isYearly
+        ? (pricingPlans[paidKey].yearlyDiscountedPrice ?? pricingPlans[paidKey].yearlyPrice)
+        : pricingPlans[paidKey].monthlyPrice;
     };
 
-    const amount = resolveAmount(billingCycle);
+    const inferredCycle = billingCycle ?? inferBillingCycleFromPlanName(planName) ?? undefined;
+    const amount = resolveAmount(inferredCycle);
 
     if (amount === null) {
       return res.status(400).json({ message: "Unknown plan" });
@@ -230,7 +238,7 @@ export async function registerRoutes(
     return res.json({
       planName,
       planType: planType as PlanType,
-      billingCycle: billingCycle ?? null,
+      billingCycle: inferredCycle ?? null,
       amount,
     });
   });

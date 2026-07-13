@@ -1,7 +1,8 @@
 import {
   getPlanAmountInr,
+  getSubscriptionPlanName,
+  getWorksheetLimitForPlanName,
   PRICING_PLANS as pricingPlans,
-  PRICING_PLAN_ORDER,
   TOP_UP_PLANS as topUpPlans,
   TOP_UP_PLAN_ORDER,
   type BillingCycle,
@@ -54,7 +55,7 @@ export function buildPublicRazorpayPlans(): RazorpayPlanDef[] {
       const amountInr = getPlanAmountInr(key, cycle);
       plans.push({
         planKey: buildWorksheetPlanKey(key, cycle),
-        name: `${plan.name} (${cycle === "monthly" ? "Monthly" : "Yearly"})`,
+        name: getSubscriptionPlanName(key, cycle),
         amount,
         currency: "INR",
         period: cycle,
@@ -175,10 +176,5 @@ export function resolveRazorpayPlan(
 }
 
 export function getWorksheetsIncludedForPlanName(planName: string): number {
-  for (const key of PRICING_PLAN_ORDER) {
-    if (pricingPlans[key].name === planName) {
-      return pricingPlans[key].worksheetsIncluded;
-    }
-  }
-  return pricingPlans.free_2.worksheetsIncluded;
+  return getWorksheetLimitForPlanName(planName) ?? pricingPlans.free_2.worksheetsIncluded;
 }

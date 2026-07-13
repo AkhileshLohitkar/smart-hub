@@ -41,6 +41,32 @@ export const QP_GRADES: string[] = [
   "Grade 12",
 ];
 
+// ---- Upload limits ---------------------------------------------------------
+export const QP_MAX_FILE_BYTES = 1 * 1024 * 1024; // 1 MB
+export const QP_MAX_PDF_PAGES = 4;
+export const QP_FILE_SIZE_ERROR =
+  "Maximum file size allowed is 1 MB. Please upload a smaller PDF or image.";
+export const QP_PDF_PAGES_ERROR =
+  "Only PDFs with up to 4 pages are supported. Please upload a PDF with 4 pages or fewer.";
+
+export function isSupportedQpFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  const type = (file.type || "").toLowerCase();
+  if (type === "application/pdf" || name.endsWith(".pdf")) return true;
+  if (type === "image/jpeg" || type === "image/jpg" || type === "image/png") return true;
+  if (/\.(jpe?g|png)$/i.test(name)) return true;
+  return false;
+}
+
+export function validateQpUploadFile(file: File): void {
+  if (!isSupportedQpFile(file)) {
+    throw new Error(`${file.name} is not a supported file (use PDF, JPG, or PNG).`);
+  }
+  if (file.size > QP_MAX_FILE_BYTES) {
+    throw new Error(QP_FILE_SIZE_ERROR);
+  }
+}
+
 // ---- Types -----------------------------------------------------------------
 export interface PaperImage {
   base64: string; // full data URL
@@ -48,6 +74,8 @@ export interface PaperImage {
   name: string;
   dataUrl: string;
   size: number;
+  /** Original source file size in bytes (pre-compression). */
+  sourceFileSize?: number;
 }
 
 export interface PaperLayoutProfile {
@@ -146,6 +174,7 @@ export interface AnswerKeyEntry {
 }
 
 export interface GenerateResult {
+  id?: number;
   paper: GeneratedPaper;
   answerKey: AnswerKeyEntry[];
 }
@@ -167,11 +196,21 @@ export async function analyzePaper(input: {
   images: PaperImage[];
 }): Promise<PaperAnalysis> {
   try {
+    const maxSourceFileSize = input.images.reduce(
+      (max, img) => Math.max(max, img.sourceFileSize ?? 0),
+      0,
+    );
     const res = await apiRequest("POST", "/api/question-papers/analyze", {
       board: input.board,
       className: input.className,
       subject: input.subject,
-      images: input.images.map((img) => ({ base64: img.dataUrl, mimeType: img.mimeType })),
+      images: input.images.map((img) => ({
+        base64: img.dataUrl,
+        mimeType: img.mimeType,
+        sourceFileSize: img.sourceFileSize,
+      })),
+      pageCount: input.images.length,
+      sourceFileSizeBytes: maxSourceFileSize || undefined,
     });
     const data = await res.json();
     return data.analysis as PaperAnalysis;
@@ -236,6 +275,7 @@ function compressImageFile(file: File): Promise<PaperImage> {
           mimeType: "image/jpeg",
           name: file.name,
           size: Math.round(base64.length * 0.75),
+          sourceFileSize: file.size,
         });
       };
       img.onerror = () => reject(new Error("Could not load image"));
@@ -247,13 +287,16 @@ function compressImageFile(file: File): Promise<PaperImage> {
 }
 
 // Convert a PDF into page images entirely in the browser using pdfjs-dist.
-async function pdfFileToImages(file: File, maxPages = 15): Promise<PaperImage[]> {
+async function pdfFileToImages(file: File, maxPages = QP_MAX_PDF_PAGES): Promise<PaperImage[]> {
   const pdfjs: any = await import("pdfjs-dist");
   const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
   const data = await file.arrayBuffer();
   const doc = await pdfjs.getDocument({ data }).promise;
+  if (doc.numPages > QP_MAX_PDF_PAGES) {
+    throw new Error(QP_PDF_PAGES_ERROR);
+  }
   const pages = Math.min(doc.numPages, maxPages);
   const out: PaperImage[] = [];
   for (let i = 1; i <= pages; i++) {
@@ -275,6 +318,7 @@ async function pdfFileToImages(file: File, maxPages = 15): Promise<PaperImage[]>
       mimeType: "image/jpeg",
       name: `${file.name} — page ${i}`,
       size: Math.round(base64.length * 0.75),
+      sourceFileSize: file.size,
     });
   }
   return out;
@@ -282,11 +326,18 @@ async function pdfFileToImages(file: File, maxPages = 15): Promise<PaperImage[]>
 
 // Turn any accepted file (image or PDF) into one or more page images.
 export async function fileToPaperImages(file: File): Promise<PaperImage[]> {
+  validateQpUploadFile(file);
+
   const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
   if (isPdf) {
-    return pdfFileToImages(file);
+    return pdfFileToImages(file, QP_MAX_PDF_PAGES);
   }
-  if (file.type.startsWith("image/") || /\.(png|jpe?g|heic|webp)$/i.test(file.name)) {
+  if (
+    file.type === "image/jpeg" ||
+    file.type === "image/jpg" ||
+    file.type === "image/png" ||
+    /\.(jpe?g|png)$/i.test(file.name)
+  ) {
     return [await compressImageFile(file)];
   }
   throw new Error(`${file.name} is not a supported file (use PDF, JPG, or PNG).`);

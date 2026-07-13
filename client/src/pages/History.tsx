@@ -7,12 +7,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Plus, Star, FileText, Calendar, ClipboardList,
-  ChevronDown, ChevronRight, Brain,
+  ChevronDown, ChevronRight, Brain, ScrollText,
 } from "lucide-react";
 import type { Worksheet } from "@shared/schema";
 import { AppNav } from "@/components/AppNav";
 
-type ActiveTab = "worksheet" | "test_prep" | "brain_flex";
+type ActiveTab = "worksheet" | "test_prep" | "brain_flex" | "question_paper";
 
 const GRADE_SORT_ORDER = [
   "Nursery", "KG 1", "KG 2", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5",
@@ -95,6 +95,11 @@ function WorksheetCard({ ws }: { ws: Worksheet }) {
         </div>
 
         <div className="flex items-center gap-1.5 flex-wrap mb-3">
+          {ws.worksheetType === "question_paper" && (
+            <Badge className="!text-[10px] !px-1.5 !py-0 !font-normal bg-primary/15 text-primary border-primary/20" data-testid={`badge-type-${ws.id}`}>
+              Question Paper Studio
+            </Badge>
+          )}
           <Badge variant="secondary" className="!text-[10px] !px-1.5 !py-0 !font-normal" data-testid={`badge-subject-${ws.id}`}>
             {ws.subject}
           </Badge>
@@ -253,6 +258,7 @@ export default function History() {
   const worksheetCount = sorted.filter((ws) => (ws.worksheetType || "worksheet") === "worksheet").length;
   const testPrepCount = sorted.filter((ws) => (ws.worksheetType || "worksheet") === "test_prep").length;
   const brainFlexCount = sorted.filter((ws) => (ws.worksheetType || "worksheet") === "brain_flex").length;
+  const questionPaperCount = sorted.filter((ws) => (ws.worksheetType || "worksheet") === "question_paper").length;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -286,14 +292,19 @@ export default function History() {
                 <Brain className="w-4 h-4 mr-1" /> Brain Flex
               </Button>
             </Link>
+            <Link href="/question-paper-studio">
+              <Button variant="outline" data-testid="button-question-paper">
+                <ScrollText className="w-4 h-4 mr-1" /> Question Paper
+              </Button>
+            </Link>
           </div>
         </div>
 
         <div className="worksheets-history-page font-sans text-sm">
-        <div className="flex gap-1 mb-6 border-b border-border">
+        <div className="flex gap-1 mb-6 border-b border-border overflow-x-auto">
           <button
             onClick={() => setActiveTab("worksheet")}
-            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === "worksheet" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === "worksheet" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
             data-testid="tab-worksheets"
           >
             <FileText className="w-3.5 h-3.5 inline mr-1.5" />
@@ -301,7 +312,7 @@ export default function History() {
           </button>
           <button
             onClick={() => setActiveTab("test_prep")}
-            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === "test_prep" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === "test_prep" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
             data-testid="tab-test-papers"
           >
             <ClipboardList className="w-3.5 h-3.5 inline mr-1.5" />
@@ -309,11 +320,19 @@ export default function History() {
           </button>
           <button
             onClick={() => setActiveTab("brain_flex")}
-            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === "brain_flex" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === "brain_flex" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
             data-testid="tab-brain-flex"
           >
             <Brain className="w-3.5 h-3.5 inline mr-1.5" />
             Brain-Flex ({brainFlexCount})
+          </button>
+          <button
+            onClick={() => setActiveTab("question_paper")}
+            className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === "question_paper" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            data-testid="tab-question-papers"
+          >
+            <ScrollText className="w-3.5 h-3.5 inline mr-1.5" />
+            Question Papers ({questionPaperCount})
           </button>
         </div>
 
@@ -327,6 +346,8 @@ export default function History() {
               <FileText className="w-16 h-16 text-muted-foreground/30 mb-4" />
             ) : activeTab === "test_prep" ? (
               <ClipboardList className="w-16 h-16 text-muted-foreground/30 mb-4" />
+            ) : activeTab === "question_paper" ? (
+              <ScrollText className="w-16 h-16 text-muted-foreground/30 mb-4" />
             ) : (
               <Brain className="w-16 h-16 text-muted-foreground/30 mb-4" />
             )}
@@ -335,14 +356,18 @@ export default function History() {
                 ? "No worksheets yet"
                 : activeTab === "test_prep"
                   ? "No test papers yet"
-                  : "No Brain-Flex puzzles yet"}
+                  : activeTab === "question_paper"
+                    ? "No question papers yet"
+                    : "No Brain-Flex puzzles yet"}
             </h2>
             <p className="font-sans text-sm text-muted-foreground mb-6 max-w-sm">
               {activeTab === "worksheet"
                 ? "Generate your first worksheet to see it here."
                 : activeTab === "test_prep"
                   ? "Create your first test paper to see it here."
-                  : "Generate a puzzle sheet from Brain Flex — it will appear here grouped by grade."}
+                  : activeTab === "question_paper"
+                    ? "Generate a paper from Question Paper Studio — it will appear here."
+                    : "Generate a puzzle sheet from Brain Flex — it will appear here grouped by grade."}
             </p>
             <Link
               href={
@@ -350,7 +375,9 @@ export default function History() {
                   ? "/new-worksheet"
                   : activeTab === "test_prep"
                     ? "/test-prep"
-                    : "/brain-flex"
+                    : activeTab === "question_paper"
+                      ? "/question-paper-studio"
+                      : "/brain-flex"
               }
             >
               <Button className="bg-gradient-primary text-white" data-testid="button-generate-first">
@@ -359,7 +386,9 @@ export default function History() {
                   ? "Generate Worksheet"
                   : activeTab === "test_prep"
                     ? "Create Test Paper"
-                    : "Brain Flex"}
+                    : activeTab === "question_paper"
+                      ? "Question Paper Studio"
+                      : "Brain Flex"}
               </Button>
             </Link>
           </div>

@@ -64,7 +64,7 @@ export const PRICING_PLANS = {
     worksheetsIncluded: 30,
     monthlyPrice: 299,
     yearlyPrice: 3588,
-    yearlyDiscountedPrice: 2691,
+    yearlyDiscountedPrice: 2699,
     category: "parents",
     description: "Great for regular practice at home",
     badgeLabel: "Starter",
@@ -77,7 +77,7 @@ export const PRICING_PLANS = {
     worksheetsIncluded: 75,
     monthlyPrice: 499,
     yearlyPrice: 5988,
-    yearlyDiscountedPrice: 4491,
+    yearlyDiscountedPrice: 4499,
     category: "parents",
     description: "Best value for active learners",
     badgeLabel: "Most Popular",
@@ -92,7 +92,7 @@ export const PRICING_PLANS = {
     worksheetsIncluded: 200,
     monthlyPrice: 599,
     yearlyPrice: 7188,
-    yearlyDiscountedPrice: 5391,
+    yearlyDiscountedPrice: 5399,
     category: "professional",
     description: "For tutors and small classrooms",
     noWatermark: true,
@@ -104,7 +104,7 @@ export const PRICING_PLANS = {
     worksheetsIncluded: 500,
     monthlyPrice: 1499,
     yearlyPrice: 17988,
-    yearlyDiscountedPrice: 13491,
+    yearlyDiscountedPrice: 13499,
     category: "professional",
     description: "Maximum volume for professionals",
     badgeLabel: "Best Value",
@@ -159,6 +159,69 @@ const LEGACY_PLAN_WORKSHEET_LIMITS: Record<string, number> = {
   "400 worksheets": PRICING_PLANS.w400.worksheetsIncluded,
 };
 
+const PAID_WORKSHEET_PLAN_KEYS: PaidWorksheetPlanKey[] = ["w50", "w100", "w200", "w400"];
+
+/**
+ * Canonical subscription plan_name stored in the database (and payment metadata).
+ * UI cards still use the short `PRICING_PLANS[key].name` (e.g. "Starter").
+ */
+export function getSubscriptionPlanName(
+  planKey: PaidWorksheetPlanKey,
+  billingCycle: BillingCycle,
+): string {
+  const base = PRICING_PLANS[planKey].name;
+  return billingCycle === "yearly" ? `${base} Yearly` : `${base} Monthly`;
+}
+
+/** Strip Monthly / Yearly / Annual suffixes (with or without parentheses). */
+export function stripPlanCycleSuffix(planName: string): string {
+  return planName
+    .trim()
+    .replace(/\s*\((monthly|yearly|annual)\)\s*$/i, "")
+    .replace(/\s+(monthly|yearly|annual)\s*$/i, "")
+    .trim();
+}
+
+export function inferBillingCycleFromPlanName(
+  planName: string | null | undefined,
+): BillingCycle | null {
+  const n = (planName || "").trim().toLowerCase();
+  if (!n) return null;
+  if (/\b(yearly|annual)\b/.test(n) || /\((yearly|annual)\)/.test(n)) return "yearly";
+  if (/\bmonthly\b/.test(n) || /\(monthly\)/.test(n)) return "monthly";
+  return null;
+}
+
+export function resolvePaidPlanKeyFromPlanName(
+  planName: string | null | undefined,
+): PaidWorksheetPlanKey | null {
+  const normalized = (planName || "").trim().toLowerCase();
+  if (!normalized) return null;
+
+  for (const key of PAID_WORKSHEET_PLAN_KEYS) {
+    for (const cycle of ["monthly", "yearly"] as BillingCycle[]) {
+      if (getSubscriptionPlanName(key, cycle).toLowerCase() === normalized) {
+        return key;
+      }
+    }
+  }
+
+  const base = stripPlanCycleSuffix(normalized).toLowerCase();
+  for (const key of PAID_WORKSHEET_PLAN_KEYS) {
+    if (PRICING_PLANS[key].name.toLowerCase() === base) return key;
+  }
+
+  return null;
+}
+
+/** True when user.plan_name belongs to the given base plan (any billing cycle). */
+export function planNameMatchesBasePlan(
+  planName: string | null | undefined,
+  basePlanKey: PaidWorksheetPlanKey,
+): boolean {
+  return resolvePaidPlanKeyFromPlanName(planName) === basePlanKey;
+}
+
 export function getYearlyWorksheetTotal(monthlyIncluded: number): number {
   return monthlyIncluded * MONTHS_PER_YEAR;
 }
@@ -188,17 +251,54 @@ export function getPlanAmountInr(
   return plan.yearlyDiscountedPrice ?? plan.yearlyPrice ?? plan.monthlyPrice * MONTHS_PER_YEAR;
 }
 
-export function getWorksheetLimitForPlanName(planName: string | null | undefined): number | null {
+export function getWorksheetLimitForPlanName(
+  planName: string | null | undefined,
+  billingCycle?: BillingCycle | string | null,
+): number | null {
   const normalized = (planName || "").trim().toLowerCase();
   if (!normalized || normalized === "free" || normalized === "basic") {
     return FREE_PLAN_WORKSHEETS_INCLUDED;
   }
+
+  const cycleFromName = inferBillingCycleFromPlanName(planName);
+  const cycleFromField =
+    billingCycle === "yearly" || billingCycle === "annual"
+      ? "yearly"
+      : billingCycle === "monthly"
+        ? "monthly"
+        : null;
+  const effectiveCycle: BillingCycle = cycleFromName ?? cycleFromField ?? "monthly";
+
+  const paidKey = resolvePaidPlanKeyFromPlanName(planName);
+  if (paidKey) {
+    const monthly = PRICING_PLANS[paidKey].worksheetsIncluded;
+    return effectiveCycle === "yearly" ? getYearlyWorksheetTotal(monthly) : monthly;
+  }
+
   for (const key of PRICING_PLAN_ORDER) {
     if (PRICING_PLANS[key].name.toLowerCase() === normalized) {
-      return PRICING_PLANS[key].worksheetsIncluded;
+      const monthly = PRICING_PLANS[key].worksheetsIncluded;
+      return effectiveCycle === "yearly" ? getYearlyWorksheetTotal(monthly) : monthly;
     }
   }
-  return LEGACY_PLAN_WORKSHEET_LIMITS[normalized] ?? null;
+
+  const base = stripPlanCycleSuffix(normalized).toLowerCase();
+  const legacy =
+    LEGACY_PLAN_WORKSHEET_LIMITS[normalized] ?? LEGACY_PLAN_WORKSHEET_LIMITS[base] ?? null;
+  if (legacy == null) return null;
+  return effectiveCycle === "yearly" ? getYearlyWorksheetTotal(legacy) : legacy;
+}
+
+/** Quota period label for profile/UI based on plan name + billing cycle. */
+export function getWorksheetQuotaPeriod(
+  planName: string | null | undefined,
+  billingCycle?: BillingCycle | string | null,
+): "month" | "year" {
+  const cycleFromName = inferBillingCycleFromPlanName(planName);
+  if (cycleFromName === "yearly") return "year";
+  if (cycleFromName === "monthly") return "month";
+  if (billingCycle === "yearly" || billingCycle === "annual") return "year";
+  return "month";
 }
 
 export function getPlanFeatures(
@@ -222,7 +322,7 @@ export function getPlanFeatures(
   const period = cycle === "yearly" ? "Year" : "Month";
   const worksheetLine = `${count} Worksheets / ${period}`;
 
-  const commonFeatures = [
+  const paidFeatures = [
     "All Your Children",
     "Nursery to Grade 10",
     "Default Qik Worksheets Watermark",
@@ -231,40 +331,13 @@ export function getPlanFeatures(
     "QR Code Answer Key",
     "AI Question Generation",
     "CBSE & State Board Support",
+    "Brain Flex Puzzles",
+    "Test Prep Generator",
+    "Question Paper Studio",
+    "Priority Support",
   ];
 
-  switch (planKey) {
-    case "w50":
-      return [worksheetLine, ...commonFeatures, "Priority Support"];
-    case "w100":
-      return [
-        worksheetLine,
-        ...commonFeatures,
-        "Brain Flex Puzzles",
-        "Test Prep Generator",
-        "Priority Support",
-      ];
-    case "w200":
-      return [
-        worksheetLine,
-        ...commonFeatures,
-        "Brain Flex Puzzles",
-        "Test Prep Generator",
-        "Question Paper Studio",
-        "Priority Support",
-      ];
-    case "w400":
-      return [
-        worksheetLine,
-        ...commonFeatures,
-        "Brain Flex Puzzles",
-        "Test Prep Generator",
-        "Question Paper Studio",
-        "Premium Priority Support",
-      ];
-    default:
-      return [worksheetLine, ...commonFeatures, "Priority Support"];
-  }
+  return [worksheetLine, ...paidFeatures];
 }
 
 export function getWorksheetLabel(planKey: WorksheetPlanKey, cycle: BillingCycle | "free"): string {

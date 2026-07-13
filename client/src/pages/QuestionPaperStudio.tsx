@@ -31,19 +31,26 @@ import {
   FileStack,
 } from "lucide-react";
 import { QuestionPaperRender } from "@/components/QuestionPaperRender";
+import { queryClient } from "@/lib/queryClient";
+import { normalizeTitleCaseField } from "@/lib/titleCase";
 import {
   QP_BOARDS,
   QP_GRADES,
+  QP_MAX_FILE_BYTES,
+  QP_MAX_PDF_PAGES,
+  QP_FILE_SIZE_ERROR,
+  QP_PDF_PAGES_ERROR,
   analyzePaper,
   generatePaper,
   fileToPaperImages,
+  validateQpUploadFile,
   downloadElementAsPdf,
   type PaperImage,
   type PaperAnalysis,
   type GenerateResult,
 } from "@/lib/questionPaperApi";
 
-const MAX_PAGES = 25;
+const MAX_PAGES = QP_MAX_PDF_PAGES;
 
 export default function QuestionPaperStudio() {
   const { data: user, isLoading: userLoading } = useUser();
@@ -67,16 +74,30 @@ export default function QuestionPaperStudio() {
     if (!userLoading && !user) setLocation("/auth");
   }, [user, userLoading, setLocation]);
 
-  const canAnalyze = !!board && !!className && !!subject && images.length > 0;
+  const imagesWithinLimits =
+    images.length > 0 &&
+    images.length <= MAX_PAGES &&
+    images.every((img) => (img.sourceFileSize ?? 0) <= QP_MAX_FILE_BYTES);
+  const canAnalyze =
+    !!board && !!className && !!subject && imagesWithinLimits;
   const canGenerate = !!analysis;
 
   const analyzeMutation = useMutation({
-    mutationFn: () => analyzePaper({ board, className, subject, images }),
+    mutationFn: () => {
+      const normalizedSubject = normalizeTitleCaseField(subject);
+      setSubject(normalizedSubject);
+      return analyzePaper({
+        board,
+        className,
+        subject: normalizedSubject,
+        images,
+      });
+    },
     onSuccess: (data) => {
       setAnalysis(data);
       setResult(null);
       if (!topic.trim() && data.chapters.length > 0) {
-        setTopic(data.chapters.join(", "));
+        setTopic(data.chapters.map((c) => normalizeTitleCaseField(c)).join(", "));
       }
       toast({ title: "Pattern analyzed", description: "Structure locked from your upload. Generate when ready." });
     },
@@ -86,17 +107,29 @@ export default function QuestionPaperStudio() {
   });
 
   const generateMutation = useMutation({
-    mutationFn: () =>
-      generatePaper({
+    mutationFn: () => {
+      const normalizedSubject = normalizeTitleCaseField(subject);
+      const normalizedTopic = normalizeTitleCaseField(topic);
+      setSubject(normalizedSubject);
+      setTopic(normalizedTopic);
+      return generatePaper({
         board,
         className,
-        subject,
-        topic: topic.trim() || undefined,
+        subject: normalizedSubject,
+        topic: normalizedTopic || undefined,
         analysis: analysis as PaperAnalysis,
-      }),
+      });
+    },
     onSuccess: (data) => {
       setResult(data);
-      toast({ title: "Question paper ready", description: "Preview it below, then download the PDF." });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/worksheets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      toast({
+        title: "Question paper ready",
+        description: data?.id
+          ? "Saved to My Worksheets. Preview it below, then download the PDF."
+          : "Preview it below, then download the PDF.",
+      });
     },
     onError: (err: any) => {
       toast({ title: "Generation failed", description: err?.message || "Please try again.", variant: "destructive" });
@@ -109,16 +142,39 @@ export default function QuestionPaperStudio() {
     try {
       for (const file of files) {
         try {
+          validateQpUploadFile(file);
           const pages = await fileToPaperImages(file);
+          if (pages.length > MAX_PAGES) {
+            toast({
+              title: "Upload rejected",
+              description: QP_PDF_PAGES_ERROR,
+              variant: "destructive",
+            });
+            continue;
+          }
           setImages((prev) => {
             const next = [...prev, ...pages];
             if (next.length > MAX_PAGES) {
-              toast({ title: "Page limit reached", description: `Only the first ${MAX_PAGES} pages are kept.`, variant: "destructive" });
+              toast({
+                title: "Page limit reached",
+                description: QP_PDF_PAGES_ERROR,
+                variant: "destructive",
+              });
+              return prev;
             }
-            return next.slice(0, MAX_PAGES);
+            return next;
           });
+          setAnalysis(null);
+          setResult(null);
         } catch (err: any) {
-          toast({ title: "Could not read file", description: err?.message || `${file.name} could not be processed.`, variant: "destructive" });
+          const message = err?.message || `${file.name} could not be processed.`;
+          const isLimitError =
+            message === QP_FILE_SIZE_ERROR || message === QP_PDF_PAGES_ERROR;
+          toast({
+            title: isLimitError ? "Upload rejected" : "Could not read file",
+            description: message,
+            variant: "destructive",
+          });
         }
       }
     } finally {
@@ -235,6 +291,7 @@ export default function QuestionPaperStudio() {
                 placeholder="e.g. Mathematics, Science, Social Science"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
+                onBlur={() => setSubject(normalizeTitleCaseField(subject))}
                 className="h-11"
                 data-testid="input-qp-subject"
               />
@@ -249,6 +306,7 @@ export default function QuestionPaperStudio() {
                 placeholder="e.g. Factorisation, Light – Reflection and Refraction"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
+                onBlur={() => setTopic(normalizeTitleCaseField(topic))}
                 className="h-11"
                 data-testid="input-qp-topic"
               />
@@ -268,7 +326,7 @@ export default function QuestionPaperStudio() {
             <input
               ref={fileInputRef}
               type="file"
-              accept="application/pdf,image/png,image/jpeg,image/*"
+              accept="application/pdf,image/png,image/jpeg,.pdf,.jpg,.jpeg,.png"
               multiple
               className="hidden"
               onChange={handleFileInput}
@@ -301,6 +359,21 @@ export default function QuestionPaperStudio() {
               )}
             </button>
 
+            <div
+              className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5 space-y-1 text-[11px] text-muted-foreground leading-relaxed"
+              data-testid="qp-upload-limits-help"
+            >
+              <p>
+                <span className="font-semibold text-foreground/80">Supported formats:</span> PDF, JPG, JPEG, PNG
+              </p>
+              <p>
+                <span className="font-semibold text-foreground/80">Maximum file size:</span> 1 MB
+              </p>
+              <p>
+                <span className="font-semibold text-foreground/80">Maximum PDF pages:</span> 4 Pages
+              </p>
+            </div>
+
             {images.length > 0 && (
               <div className="grid grid-cols-4 gap-2" data-testid="qp-image-previews">
                 {images.map((img, idx) => (
@@ -322,7 +395,19 @@ export default function QuestionPaperStudio() {
 
             <Button
               type="button"
-              onClick={() => analyzeMutation.mutate()}
+              onClick={() => {
+                if (!canAnalyze) return;
+                if (images.length > MAX_PAGES) {
+                  toast({ title: "Upload rejected", description: QP_PDF_PAGES_ERROR, variant: "destructive" });
+                  return;
+                }
+                const oversized = images.some((img) => (img.sourceFileSize ?? 0) > QP_MAX_FILE_BYTES);
+                if (oversized) {
+                  toast({ title: "Upload rejected", description: QP_FILE_SIZE_ERROR, variant: "destructive" });
+                  return;
+                }
+                analyzeMutation.mutate();
+              }}
               disabled={!canAnalyze || analyzeMutation.isPending || isProcessingFiles}
               className="w-full bg-gradient-primary text-white font-semibold rounded-xl h-11"
               data-testid="button-qp-analyze"
@@ -335,7 +420,7 @@ export default function QuestionPaperStudio() {
             </Button>
             {!canAnalyze && (
               <p className="text-[11px] text-muted-foreground text-center">
-                Select board, grade, subject, and add at least one page.
+                Select board, grade, subject, and add at least one page (max 1 MB, PDF up to 4 pages).
               </p>
             )}
           </Card>
@@ -365,6 +450,7 @@ export default function QuestionPaperStudio() {
                 <Input
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
+                  onBlur={() => setTopic(normalizeTitleCaseField(topic))}
                   placeholder="Leave blank to use detected topics or full subject syllabus"
                   className="h-10"
                   data-testid="input-qp-topic-confirm"

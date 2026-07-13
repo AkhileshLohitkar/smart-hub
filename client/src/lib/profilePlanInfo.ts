@@ -1,4 +1,8 @@
-import { getWorksheetLimitForPlanName, FREE_PLAN_WORKSHEETS_INCLUDED } from "@shared/pricing";
+import {
+  getWorksheetLimitForPlanName,
+  getWorksheetQuotaPeriod,
+  FREE_PLAN_WORKSHEETS_INCLUDED,
+} from "@shared/pricing";
 
 export type ProfilePlanInfo = {
   displayName: string;
@@ -8,11 +12,14 @@ export type ProfilePlanInfo = {
   worksheetsUsed: number;
   worksheetsLeft: number | null;
   isFree: boolean;
+  /** Paid plan quota period for display ("month" | "year"). Null for free. */
+  quotaPeriod: "month" | "year" | null;
 };
 
 export function getProfilePlanInfo(user: {
   plan?: string | null;
   planName?: string | null;
+  billingCycle?: string | null;
   planExpiresAt?: string | Date | null;
   worksheetsGenerated?: number | null;
 }): ProfilePlanInfo {
@@ -26,7 +33,10 @@ export function getProfilePlanInfo(user: {
   const displayName = isFree ? "Free" : planName || "Paid";
   const worksheetsIncluded = isFree
     ? FREE_PLAN_WORKSHEETS_INCLUDED
-    : getWorksheetLimitForPlanName(planName) ?? FREE_PLAN_WORKSHEETS_INCLUDED;
+    : getWorksheetLimitForPlanName(planName, user.billingCycle) ?? FREE_PLAN_WORKSHEETS_INCLUDED;
+  const quotaPeriod = isFree
+    ? null
+    : getWorksheetQuotaPeriod(planName, user.billingCycle);
 
   let status: ProfilePlanInfo["status"] = isFree ? "Free" : "Active";
   let expiresLabel: string | null = null;
@@ -59,5 +69,6 @@ export function getProfilePlanInfo(user: {
     worksheetsUsed: isFree ? Math.min(used, worksheetsIncluded) : used,
     worksheetsLeft,
     isFree,
+    quotaPeriod,
   };
 }

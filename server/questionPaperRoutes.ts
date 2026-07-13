@@ -1,6 +1,9 @@
 import type { Express, Response } from "express";
 import { z } from "zod";
 import { openai } from "./openaiClient";
+import { storage } from "./storage";
+import { ensureWorksheetQuota, recordWorksheetGeneration } from "./services/worksheetQuota";
+import { logAnswerKeySaved } from "./utils/answerKeyLog";
 
 const VISION_MODEL = "gpt-4o";
 const GENERATION_MODEL = "gpt-5.1";
@@ -20,17 +23,62 @@ function sendOpenAiConfigError(res: Response): void {
   });
 }
 
+const QP_MAX_FILE_BYTES = 1 * 1024 * 1024; // 1 MB
+const QP_MAX_PDF_PAGES = 4;
+const QP_FILE_SIZE_ERROR =
+  "Maximum file size allowed is 1 MB. Please upload a smaller PDF or image.";
+const QP_PDF_PAGES_ERROR =
+  "Only PDFs with up to 4 pages are supported. Please upload a PDF with 4 pages or fewer.";
+
 const imageSchema = z.object({
   base64: z.string().min(1),
   mimeType: z.string().optional(),
+  sourceFileSize: z.number().nonnegative().optional(),
 });
 
 const analyzeSchema = z.object({
   board: z.string().min(1),
   className: z.string().min(1),
   subject: z.string().min(1),
-  images: z.array(imageSchema).min(1).max(25),
+  images: z.array(imageSchema).min(1).max(QP_MAX_PDF_PAGES),
+  pageCount: z.number().int().positive().optional(),
+  sourceFileSizeBytes: z.number().nonnegative().optional(),
 });
+
+function estimateBase64Bytes(raw: string): number {
+  const cleaned = raw.includes(",") ? raw.split(",")[1] || "" : raw;
+  // Rough decoded size from base64 length
+  return Math.floor((cleaned.length * 3) / 4);
+}
+
+function validateAnalyzeUploadLimits(input: {
+  images: Array<{ base64: string; sourceFileSize?: number }>;
+  pageCount?: number;
+  sourceFileSizeBytes?: number;
+}): { ok: true } | { ok: false; message: string } {
+  const pageCount = input.pageCount ?? input.images.length;
+  if (pageCount > QP_MAX_PDF_PAGES || input.images.length > QP_MAX_PDF_PAGES) {
+    return { ok: false, message: QP_PDF_PAGES_ERROR };
+  }
+
+  const reportedSizes = [
+    input.sourceFileSizeBytes,
+    ...input.images.map((img) => img.sourceFileSize),
+  ].filter((n): n is number => typeof n === "number" && Number.isFinite(n));
+
+  if (reportedSizes.some((n) => n > QP_MAX_FILE_BYTES)) {
+    return { ok: false, message: QP_FILE_SIZE_ERROR };
+  }
+
+  // Fallback: reject absurdly large single-page payloads (helps when client omits size metadata)
+  for (const img of input.images) {
+    if (estimateBase64Bytes(img.base64) > QP_MAX_FILE_BYTES * 8) {
+      return { ok: false, message: QP_FILE_SIZE_ERROR };
+    }
+  }
+
+  return { ok: true };
+}
 
 const layoutProfileSchema = z.object({
   style: z.enum(["generic", "nested_board"]).default("generic"),
@@ -417,7 +465,17 @@ export function registerQuestionPaperRoutes(app: Express): void {
         return res.status(401).json({ message: "Please log in to analyze question papers" });
       }
 
-      const { board, className, subject, images } = analyzeSchema.parse(req.body);
+      const { board, className, subject, images, pageCount, sourceFileSizeBytes } =
+        analyzeSchema.parse(req.body);
+
+      const limits = validateAnalyzeUploadLimits({
+        images,
+        pageCount,
+        sourceFileSizeBytes,
+      });
+      if (!limits.ok) {
+        return res.status(400).json({ message: limits.message });
+      }
 
       const systemPrompt =
         "You are an expert Indian examination analyst. You extract the EXACT structural AND visual layout pattern from board question papers — header format, section header lines, numbering scheme (roman numerals, nested A/B parts), marks placement, and question types. You always respond with strict JSON.";
@@ -523,7 +581,12 @@ CRITICAL layout detection rules:
       return res.json({ analysis });
     } catch (err) {
       if (err instanceof z.ZodError) {
-        return res.status(400).json({ message: err.errors[0]?.message || "Invalid request" });
+        const issue = err.errors[0];
+        const path = (issue?.path || []).join(".");
+        if (path.startsWith("images") || path === "images") {
+          return res.status(400).json({ message: QP_PDF_PAGES_ERROR });
+        }
+        return res.status(400).json({ message: issue?.message || "Invalid request" });
       }
       if (isOpenAiKeyOrAuthError(err)) return sendOpenAiConfigError(res);
       console.error("[QuestionPaper] Analyze error:", err);
@@ -535,6 +598,12 @@ CRITICAL layout detection rules:
     try {
       if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
         return res.status(401).json({ message: "Please log in to generate question papers" });
+      }
+
+      const userId = req.user.id;
+      const quotaErr = await ensureWorksheetQuota(userId);
+      if (quotaErr) {
+        return res.status(quotaErr.status).json({ message: quotaErr.message });
       }
 
       let { board, className, subject, topic, analysis } = generateSchema.parse(req.body);
@@ -576,9 +645,48 @@ CRITICAL layout detection rules:
         });
       }
 
+      const paper = result.paper;
+      const answerKey = Array.isArray(result.answerKey) ? result.answerKey : [];
+      const topicLabel =
+        (typeof topic === "string" && topic.trim()) ||
+        (Array.isArray(analysis.chapters) && analysis.chapters.length > 0
+          ? analysis.chapters.join(", ")
+          : paper.title || `${subject} Question Paper`);
+
+      const content = {
+        title: paper.title || `${subject} Question Paper`,
+        paper,
+        answerKey,
+        analysis,
+        generationType: "question_paper_studio",
+      };
+
+      const worksheet = await storage.createWorksheet(
+        {
+          className,
+          board,
+          subject,
+          topic: topicLabel,
+          chapter: Array.isArray(analysis.chapters) ? analysis.chapters.join(", ") : "",
+          difficulty: (analysis.difficulty || "medium").toLowerCase(),
+          length: Number(analysis.totalMarks) || paper.totalMarks || paper.sections?.length || 0,
+          colorMode: "bw",
+          worksheetType: "question_paper",
+        },
+        content,
+        userId,
+      );
+      logAnswerKeySaved(worksheet, "question-papers/generate");
+
+      const recordErr = await recordWorksheetGeneration(userId, worksheet.id);
+      if (recordErr) {
+        return res.status(recordErr.status).json({ message: recordErr.message });
+      }
+
       return res.json({
-        paper: result.paper,
-        answerKey: Array.isArray(result.answerKey) ? result.answerKey : [],
+        id: worksheet.id,
+        paper,
+        answerKey,
       });
     } catch (err) {
       if (err instanceof z.ZodError) {

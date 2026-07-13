@@ -34,6 +34,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { STATE_BOARDS, getStateBoardBooks } from "@/lib/stateBoardChapters";
 import { getSubjectBooks } from "@/lib/ncertChapters";
 import type { ContentUpload } from "@shared/schema";
+import { AiAccuracyDisclaimer } from "@/components/AiAccuracyDisclaimer";
+import { normalizeTitleCaseField } from "@/lib/titleCase";
 
 const testPrepSchema = z.object({
   className: z.string().min(1, "Grade is required"),
@@ -132,7 +134,7 @@ export default function TestPrep() {
   const topics = form.watch("topics");
 
   const handleAddTopic = (t?: string) => {
-    const trimmed = (t ?? topicInput).trim();
+    const trimmed = normalizeTitleCaseField(t ?? topicInput);
     if (trimmed && !form.getValues("topics").includes(trimmed)) {
       form.setValue("topics", [...form.getValues("topics"), trimmed], { shouldValidate: true });
       if (!t) setTopicInput("");
@@ -156,8 +158,9 @@ export default function TestPrep() {
       setSelectedNoteIds(prev => prev.filter(id => id !== upload.id));
     } else {
       setSelectedNoteIds(prev => [...prev, upload.id]);
-      if (label && !topics.includes(label)) {
-        form.setValue("topics", [...form.getValues("topics"), label], { shouldValidate: true });
+      const normalized = normalizeTitleCaseField(label);
+      if (normalized && !form.getValues("topics").includes(normalized)) {
+        form.setValue("topics", [...form.getValues("topics"), normalized], { shouldValidate: true });
       }
     }
   };
@@ -174,7 +177,12 @@ export default function TestPrep() {
       ? `State Board - ${selectedStateBoard}`
       : data.board;
     try {
-      const payload: any = { ...data, board: boardToSend };
+      const payload: any = {
+        ...data,
+        board: boardToSend,
+        subject: normalizeTitleCaseField(data.subject),
+        topics: data.topics.map((t) => normalizeTitleCaseField(t)).filter(Boolean),
+      };
       if (selectedNoteIds.length > 0) payload.selectedNoteIds = selectedNoteIds;
       if (ncertBook) payload.ncertBook = ncertBook;
 
@@ -333,6 +341,10 @@ export default function TestPrep() {
                             placeholder="e.g. Mathematics, Science, English"
                             className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl px-4"
                             {...field}
+                            onBlur={(e) => {
+                              field.onBlur();
+                              field.onChange(normalizeTitleCaseField(e.target.value));
+                            }}
                             data-testid="input-subject"
                           />
                         </FormControl>
@@ -356,6 +368,7 @@ export default function TestPrep() {
                               className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl px-4 flex-1"
                               value={topicInput}
                               onChange={(e) => setTopicInput(e.target.value)}
+                              onBlur={() => setTopicInput(normalizeTitleCaseField(topicInput))}
                               onKeyDown={handleTopicKeyDown}
                               data-testid="input-topic"
                             />
@@ -617,6 +630,7 @@ export default function TestPrep() {
                       </>
                     )}
                   </Button>
+                  <AiAccuracyDisclaimer />
                 </div>
               </form>
             </Form>

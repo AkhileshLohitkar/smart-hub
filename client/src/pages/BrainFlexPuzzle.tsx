@@ -14,6 +14,8 @@ import {
   BRAIN_FLEX_RESTRICTED_SUBJECT_MESSAGE,
   isBrainFlexRestrictedSubject,
 } from "@shared/brainFlexRestrictedSubjects";
+import { AiAccuracyDisclaimer } from "@/components/AiAccuracyDisclaimer";
+import { normalizeTitleCaseField } from "@/lib/titleCase";
 
 const PUZZLE_TYPES = [
   { id: "sudoku", name: "Sudoku", description: "Number grid logic", icon: "🔢" },
@@ -130,11 +132,15 @@ export default function BrainFlexPuzzle() {
       if (isBrainFlexRestrictedSubject(curriculumSubject)) {
         throw new Error(BRAIN_FLEX_RESTRICTED_SUBJECT_MESSAGE);
       }
+      const normalizedSubject = normalizeTitleCaseField(curriculumSubject);
+      const normalizedTopic = normalizeTitleCaseField(curriculumTopic);
+      if (normalizedSubject !== curriculumSubject) setCurriculumSubject(normalizedSubject);
+      if (normalizedTopic !== curriculumTopic) setCurriculumTopic(normalizedTopic);
       const res = await apiRequest("POST", "/api/brain-flex/generate", {
         className: selectedGrade,
         board: boardToSend,
-        subject: curriculumSubject.trim() || "Brain Flex",
-        chapter: curriculumTopic.trim(),
+        subject: normalizedSubject || "Brain Flex",
+        chapter: normalizedTopic,
         puzzleTypeIds: selectedPuzzles,
         difficulty,
       });
@@ -282,6 +288,7 @@ export default function BrainFlexPuzzle() {
                     className={`h-10 placeholder:text-gray-500 ${DARK_INPUT}`}
                     value={curriculumSubject}
                     onChange={(e) => setCurriculumSubject(e.target.value)}
+                    onBlur={() => setCurriculumSubject(normalizeTitleCaseField(curriculumSubject))}
                     data-testid="input-brainflex-subject"
                   />
                 </div>
@@ -292,6 +299,7 @@ export default function BrainFlexPuzzle() {
                     className={`h-10 placeholder:text-gray-500 ${DARK_INPUT}`}
                     value={curriculumTopic}
                     onChange={(e) => setCurriculumTopic(e.target.value)}
+                    onBlur={() => setCurriculumTopic(normalizeTitleCaseField(curriculumTopic))}
                     data-testid="input-brainflex-topic"
                   />
                 </div>
@@ -491,6 +499,7 @@ export default function BrainFlexPuzzle() {
                     <span className="whitespace-nowrap">Generate Fun Sheet</span>
                     <ArrowRight className="shrink-0" />
                   </Button>
+                  <AiAccuracyDisclaimer />
                 </div>
               </div>
             </Card>
