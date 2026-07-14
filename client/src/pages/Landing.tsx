@@ -9,6 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { useUser } from "@/hooks/use-auth";
 import { PricingPlansSection } from "@/components/PricingPlansSection";
 import { FaqSection } from "@/components/FaqSection";
+import { LandingPromoSection } from "@/components/LandingPromoSection";
+import { cn } from "@/lib/utils";
+
+const landingSectionPad = "py-12 sm:py-16 lg:py-20 px-4 sm:px-6";
+/** Existing homepage section backgrounds — alternate A → B → A … */
+const landingSectionBgA = "bg-background";
+const landingSectionBgB = "bg-muted/30";
 
 const features = [
   {
@@ -161,7 +168,9 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6 bg-muted/30">
+      <LandingPromoSection className={landingSectionBgB} />
+
+      <section className={cn(landingSectionPad, landingSectionBgA)}>
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-8 sm:mb-12 lg:mb-14">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold mb-3 sm:mb-4 px-2">
@@ -194,15 +203,15 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6" id="pricing">
+      <section className={cn(landingSectionPad, landingSectionBgB)} id="pricing">
         <div className="container mx-auto max-w-6xl">
           <PricingPlansSection headerVariant="landing" showPaymentRecover={!!user} />
         </div>
       </section>
 
-      <FaqSection limit={5} showViewAllLink />
+      <FaqSection limit={5} showViewAllLink className={landingSectionBgA} />
 
-      <section className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6 bg-muted/30">
+      <section className={cn(landingSectionPad, landingSectionBgB)}>
         <div className="container mx-auto max-w-4xl text-center">
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold mb-3 sm:mb-4 px-2">
             How it works
@@ -232,7 +241,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6">
+      <section className={cn(landingSectionPad, landingSectionBgA)}>
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-8 sm:mb-12 lg:mb-14">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold mb-3 sm:mb-4 px-2">
@@ -330,7 +339,7 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-12 sm:py-16 lg:py-20 px-4 sm:px-6 bg-muted/30">
+      <section className={cn(landingSectionPad, landingSectionBgB)}>
         <div className="container mx-auto max-w-3xl text-center px-2">
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-display font-bold mb-4 sm:mb-6">
             Ready to save hours of preparation?
