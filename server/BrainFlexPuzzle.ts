@@ -1,5 +1,5 @@
 import { pickBrainflexWordsForContext, getBrainflexWordClue } from "./utils/brainflexWords";
-import { getWordMeaning } from "./utils/wordMeanings";
+import { getWordSearchDisplayClue } from "./utils/wordMeanings";
 import { generateCrosswordEngine } from "./utils/generateCrossword";
 import { generateSudoku6x6, isSudoku6x6Matrix } from "@shared/sudoku6x6";
 import {
@@ -8,8 +8,10 @@ import {
   pickRiddles,
   pickBrainTeasers,
   getContextGradeBand,
+  isGenericBrainFlexSubject,
 } from "./utils/brainflexContext";
-import { getGradeWordLimits } from "./utils/brainflexCurriculum";
+import { getGradeWordLimits, NEUTRAL_WORD_BANK } from "./utils/brainflexCurriculum";
+import { seededShuffle } from "./utils/brainflexUniqueness";
 
 /**
  * Brain-Flex puzzle generation only (isolated from normal worksheet AI flow).
@@ -45,7 +47,31 @@ const CROSSWORD_CLUE_MAP: Record<string, string> = {
   CODE: "Instructions for a computer",
   GRID: "Rows and columns of squares",
   SOLVE: "Find the answer",
+  MEMORY: "What helps you remember facts",
+  PATTERN: "A repeating design or order",
+  QUIZ: "A short set of questions",
+  MIND: "Your thinking ability",
+  SKILL: "Something you get better at with practice",
+  STUDY: "Work hard to learn a lesson",
+  BRIGHT: "Quick and clever",
+  TRAIN: "Practice to get stronger at something",
+  BOOK: "Pages you read to learn",
+  READ: "Look at words and understand them",
+  WRITE: "Put words onto paper",
+  WORD: "A unit of language",
+  GAME: "An activity played for fun",
+  CLASS: "A group of students learning together",
+  SCHOOL: "A place where children learn",
+  GRADE: "A school level or year",
+  SCIENCE: "Study of nature and how things work",
+  ENGLISH: "A language studied at school",
 };
+
+/** Crossword-only educational bank when Curriculum Focus is empty (does not affect other generators). */
+const CROSSWORD_GENERIC_BANK: string[] = [
+  ...Object.keys(CROSSWORD_CLUE_MAP),
+  ...NEUTRAL_WORD_BANK,
+];
 
 export type CrosswordClueEntry = { number: number; clue: string; answer: string };
 
@@ -186,17 +212,86 @@ function placeInEmptyRun(grid: string[][], word: string): CrosswordPlaced | null
   return null;
 }
 
+function crosswordClueForWord(word: string): string {
+  const u = String(word || "").toUpperCase().trim();
+  if (CROSSWORD_CLUE_MAP[u]) return CROSSWORD_CLUE_MAP[u]!;
+  const meaning = getBrainflexWordClue(u);
+  if (meaning && meaning !== "Meaning not available") return meaning;
+  return `A useful school word: ${u.charAt(0)}${u.slice(1).toLowerCase()}`;
+}
+
+function fitCrosswordBank(words: string[], minLen: number, maxLen: number): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of words) {
+    const u = String(raw || "")
+      .toUpperCase()
+      .replace(/[^A-Z]/g, "");
+    if (!u || seen.has(u)) continue;
+    if (u.length < minLen || u.length > maxLen) continue;
+    seen.add(u);
+    out.push(u);
+  }
+  return out;
+}
+
 /**
- * Full crossword: 10×10, intersecting / random placement, filler letters in empty cells.
- * Always returns non-empty grid + clues (Brain-Flex only — not wired to /api/worksheets/*).
+ * Crossword candidates:
+ * - With Curriculum Focus → curriculum/topic words (same as today).
+ * - Without Curriculum Focus → educational generic bank with local clues (no dictionary gate).
+ * Always ensures enough words so the layout engine can build a printable puzzle.
+ */
+async function pickCrosswordCandidateWords(ctx?: BrainFlexContext): Promise<string[]> {
+  const limits = getGradeWordLimits(getContextGradeBand(ctx));
+  const minLen = limits.minLen;
+  const maxLen = Math.min(8, limits.maxLen);
+  const needed = Math.max(16, limits.crosswordMax * 3);
+
+  const hasCurriculum =
+    !isGenericBrainFlexSubject(ctx?.subject) || Boolean(ctx?.topic?.trim());
+
+  let candidates: string[] = [];
+
+  if (hasCurriculum) {
+    candidates = (
+      await pickBrainflexWordsForContext(needed, ctx, { minLen, maxLen })
+    ).map((w) => w.toUpperCase());
+  }
+
+  // No curriculum (or sparse curriculum pool): use crossword-local educational bank.
+  if (candidates.length < Math.min(8, limits.crosswordMax + 2)) {
+    const generic = fitCrosswordBank(
+      shuffle([...CROSSWORD_GENERIC_BANK]),
+      minLen,
+      maxLen,
+    );
+    const merged = new Set([...candidates, ...generic]);
+    // Grade/board-aware educational extras when focus is blank.
+    const gradeHint = String(ctx?.grade || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (gradeHint.includes("GRADE") || /\d/.test(String(ctx?.grade || ""))) {
+      for (const w of fitCrosswordBank(["GRADE", "CLASS", "SCHOOL", "LEARN", "BOOK"], minLen, maxLen)) {
+        merged.add(w);
+      }
+    }
+    candidates = [...merged];
+  }
+
+  if (candidates.length === 0) {
+    candidates = fitCrosswordBank(Object.keys(CROSSWORD_CLUE_MAP), 3, 8);
+  }
+
+  return shuffle(candidates).slice(0, Math.max(needed, candidates.length));
+}
+
+/**
+ * Full crossword: intersecting layout + clues.
+ * Works with or without Curriculum Focus (Brain-Flex only).
  */
 export async function generateCrossword(ctx?: BrainFlexContext): Promise<CrosswordPayload> {
-  const clueForWord = (w: string) => CROSSWORD_CLUE_MAP[String(w || "").toUpperCase()] ?? getBrainflexWordClue(w);
+  const clueForWord = crosswordClueForWord;
 
   const limits = getGradeWordLimits(getContextGradeBand(ctx));
-  const candidateWords = (
-    await pickBrainflexWordsForContext(24, ctx, { minLen: limits.minLen, maxLen: Math.min(8, limits.maxLen) })
-  ).map((w) => w.toUpperCase());
+  const candidateWords = await pickCrosswordCandidateWords(ctx);
 
   const built = generateCrosswordEngine({
     candidateWords,
@@ -224,7 +319,7 @@ export async function generateCrossword(ctx?: BrainFlexContext): Promise<Crosswo
   const payload: CrosswordPayload = {
     grid: built.grid,
     words: built.wordBank,
-    wordsDetailed: built.wordBank.map((w) => ({ word: w, meaning: getBrainflexWordClue(w) })),
+    wordsDetailed: built.wordBank.map((w) => ({ word: w, meaning: crosswordClueForWord(w) })),
     clues: clueEntries,
     crosswordAnswers: built.wordBank,
     answers: placed,
@@ -338,6 +433,7 @@ export async function generateWordSearch(ctx?: BrainFlexContext): Promise<{
   };
 
   // Try multiple full regenerations to guarantee correctness and variety.
+  const attemptOffset = (ctx?.generationAttempt ?? 0) * 7;
   for (let generationAttempt = 0; generationAttempt < 50; generationAttempt++) {
     const size = 12;
     let selectedWords = await pickBrainflexWordsForContext(TARGET_WORD_COUNT * 3, ctx, {
@@ -354,11 +450,17 @@ export async function generateWordSearch(ctx?: BrainFlexContext): Promise<{
       .map((w) => w.toUpperCase().replace(/\s+/g, ""))
       .filter((w) => w.length >= 4 && w.length <= size);
 
+    // Rotate candidate order each regeneration attempt for different placement patterns.
+    const rotated =
+      candidates.length > 0
+        ? [...candidates.slice((generationAttempt + attemptOffset) % candidates.length), ...candidates]
+        : candidates;
+
     const grid = buildEmptyGrid(size);
     const placedWords: string[] = [];
     const answers: Array<{ word: string; row: number; col: number; direction: string; positions: Array<{ row: number; col: number }> }> = [];
 
-    for (const w of candidates) {
+    for (const w of rotated) {
       if (placedWords.length >= TARGET_WORD_COUNT) break;
       if (placedWords.includes(w)) continue;
       const placed = placeWord(grid, w);
@@ -388,8 +490,9 @@ export async function generateWordSearch(ctx?: BrainFlexContext): Promise<{
       size,
       grid,
       words: finalWords,
-      clues: finalWords.map((w) => getBrainflexWordClue(w)),
-      wordsDetailed: finalWords.map((w) => ({ word: w, meaning: getBrainflexWordClue(w) })),
+      // Always meaningful educational clues (never placeholders / "Meaning not available").
+      clues: finalWords.map((w) => getWordSearchDisplayClue(w)),
+      wordsDetailed: finalWords.map((w) => ({ word: w, meaning: getWordSearchDisplayClue(w) })),
       answers,
     };
   }
@@ -432,7 +535,9 @@ export async function generateBoggles(ctx?: BrainFlexContext): Promise<Array<{ s
     minLen: limits.minLen,
     maxLen: limits.maxLen,
   });
-  return selected.map((word) => {
+  const seed = (ctx?.generationSeed ?? Date.now()) + (ctx?.generationAttempt ?? 0) * 809;
+  const ordered = seededShuffle(selected, seed);
+  return ordered.map((word) => {
     const original = word.toUpperCase();
     const scrambled = scrambleWord(original);
     return { scrambled, original, answer: original, hint: "Unscramble", meaning: getBrainflexWordClue(original) };

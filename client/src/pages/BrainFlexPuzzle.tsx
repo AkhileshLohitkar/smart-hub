@@ -305,7 +305,7 @@ export default function BrainFlexPuzzle() {
                 </div>
               </div>
               <p className=" italic text-xs text-gray-700 dark:text-gray-400 mt-3">
-                Leave blank for mixed curriculum puzzles, or fill in to get subject-specific word searches, riddles & brain teasers.
+                Leave blank for mixed curriculum puzzles (including crossword), or fill in to get subject-specific word searches, riddles, brain teasers &amp; crosswords.
               </p>
               {subjectRestricted ? (
                 <p className="text-xs text-amber-700 dark:text-amber-400 mt-3">

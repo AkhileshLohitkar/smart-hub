@@ -11,6 +11,8 @@ import {
   resolveBoardId,
   resolveSubjectCategory,
 } from "./brainflexCurriculum";
+import { seededShuffle } from "./brainflexUniqueness";
+import { buildRiddlesFromKnowledge, buildTeasersFromKnowledge } from "./brainflexKnowledge";
 
 export type BrainFlexContext = {
   board?: string;
@@ -23,6 +25,21 @@ export type BrainFlexContext = {
   excludeRiddles?: string[];
   /** Normalized brain teaser questions recently used. */
   excludeBrainTeasers?: string[];
+  /**
+   * Condensed matching My Notes text for this user (optional enrichment).
+   * Only set when Curriculum Focus is present and notes match.
+   */
+  notesContext?: string;
+  /** Vocabulary tokens extracted from matching My Notes (optional). */
+  notesVocab?: string[];
+  /** Unified knowledge object — single source of truth for all activities in one worksheet. */
+  knowledge?: import("./brainflexKnowledge").BrainFlexKnowledgeObject;
+  /** Per-generation entropy — changes shuffle/pick order each attempt. */
+  generationSeed?: number;
+  /** Retry attempt index (0-based) for stronger variation on duplicates. */
+  generationAttempt?: number;
+  /** Slight difficulty variation within the same grade band. */
+  difficultyHint?: "easy" | "medium" | "challenging";
 };
 
 export function getContextGradeBand(ctx?: BrainFlexContext): GradeBand {
@@ -193,59 +210,100 @@ export async function pickRiddles(
   const subject = getContextSubject(ctx);
   const topic = norm(ctx?.topic);
   const hasCurriculum = !isGenericBrainFlexSubject(ctx?.subject) || Boolean(topic);
+  const exclude = new Set((ctx?.excludeRiddles ?? []).map(normQuestion));
 
-  let pool: RiddleEntry[];
-  if (!hasCurriculum) {
-    pool = GENERAL_RIDDLES;
-  } else if (subject !== "general") {
-    const subjectPool = ALL_SUBJECT_RIDDLES.filter((r) => r.subjects?.includes(subject));
-    const topicFiltered = topic
-      ? subjectPool.filter(
-          (r) =>
-            !r.topics?.length ||
-            r.topics.some((t) => topic.includes(t) || matchesAny(topic, [t])),
-        )
-      : subjectPool;
-    pool = topicFiltered.length >= count ? topicFiltered : subjectPool;
-  } else {
-    pool = ALL_SUBJECT_RIDDLES.filter(
-      (r) => r.topics?.some((t) => topic.includes(t) || matchesAny(topic, [t])),
-    );
-    if (pool.length < count) pool = ALL_SUBJECT_RIDDLES;
+  let picked: Array<{ question: string; answer: string }> = [];
+  if (ctx?.knowledge && ctx.knowledge.vocabulary.length >= 2) {
+    picked = buildRiddlesFromKnowledge(ctx.knowledge, count, exclude);
   }
 
-  let picked = shuffle(filterRiddles(pool, ctx)).slice(0, count);
+  if (picked.length < count) {
+    let pool: RiddleEntry[];
+    if (!hasCurriculum) {
+      pool = GENERAL_RIDDLES;
+    } else if (subject !== "general") {
+      const subjectPool = ALL_SUBJECT_RIDDLES.filter((r) => r.subjects?.includes(subject));
+      const topicFiltered = topic
+        ? subjectPool.filter(
+            (r) =>
+              !r.topics?.length ||
+              r.topics.some((t) => topic.includes(t) || matchesAny(topic, [t])),
+          )
+        : subjectPool;
+      pool = topicFiltered.length >= count ? topicFiltered : subjectPool;
+    } else {
+      pool = ALL_SUBJECT_RIDDLES.filter(
+        (r) => r.topics?.some((t) => topic.includes(t) || matchesAny(topic, [t])),
+      );
+      if (pool.length < count) pool = ALL_SUBJECT_RIDDLES;
+    }
+
+    let filtered = filterRiddles(pool, ctx);
+    const offset =
+      filtered.length > count
+        ? ((ctx?.generationAttempt ?? 0) + (ctx?.generationSeed ?? 0)) % filtered.length
+        : 0;
+    if (offset > 0) {
+      filtered = [...filtered.slice(offset), ...filtered.slice(0, offset)];
+    }
+
+    const fromPool = seededShuffle(filtered, (ctx?.generationSeed ?? 0) + (ctx?.generationAttempt ?? 0) * 401).slice(
+      0,
+      count - picked.length,
+    );
+    picked = [...picked, ...fromPool];
+  }
+
   if (picked.length < count && hasCurriculum) {
     const { expandRiddlesWithAi } = await import("./brainflexAiExpand");
-    const extra = await expandRiddlesWithAi(ctx ?? {}, count - picked.length);
-    picked = [...picked, ...extra.map((r) => ({ question: r.question, answer: r.answer }))];
+    const extra = await expandRiddlesWithAi(ctx ?? {}, count - picked.length + 2);
+    for (const r of extra) {
+      if (picked.length >= count) break;
+      const q = normQuestion(r.question);
+      if (!q || exclude.has(q)) continue;
+      if (picked.some((p) => normQuestion(p.question) === q)) continue;
+      picked.push({ question: r.question, answer: r.answer });
+    }
   }
   if (picked.length < count && !hasCurriculum) {
-    picked = [...picked, ...shuffle(filterRiddles(GENERAL_RIDDLES, ctx)).slice(0, count - picked.length)];
+    picked = [
+      ...picked,
+      ...seededShuffle(filterRiddles(GENERAL_RIDDLES, ctx), (ctx?.generationSeed ?? 0) + 911).slice(
+        0,
+        count - picked.length,
+      ),
+    ];
   }
 
-  return picked.slice(0, count).map(({ question, answer }) => ({ question, answer }));
+  return seededShuffle(picked, (ctx?.generationSeed ?? 0) + 1201)
+    .slice(0, count)
+    .map(({ question, answer }) => ({ question, answer }));
 }
 
 export type BrainTeaserEntry = { question: string; answer: string; subjects?: SubjectCategory[] };
 
 function buildDynamicTeasers(ctx: BrainFlexContext | undefined): BrainTeaserEntry[] {
   const band = getContextGradeBand(ctx);
+  const seed = (ctx?.generationSeed ?? Date.now()) + (ctx?.generationAttempt ?? 0) * 503;
   const maxN = band === "very_easy" ? 9 : band === "easy" ? 12 : band === "intermediate" ? 20 : 30;
-  const a = 1 + Math.floor(Math.random() * maxN);
-  const b = 1 + Math.floor(Math.random() * maxN);
-  const c = 1 + Math.floor(Math.random() * Math.min(9, maxN));
-  const d = 2 + Math.floor(Math.random() * Math.min(8, maxN));
-  const seqStart = 1 + Math.floor(Math.random() * 5);
+  const a = 1 + (seed % maxN);
+  const b = 1 + ((seed * 7) % maxN);
+  const c = 1 + ((seed * 13) % Math.min(9, maxN));
+  const d = 2 + ((seed * 19) % Math.min(8, maxN));
+  const seqStart = 1 + ((seed * 23) % 5);
+  const offset = seed % 4;
 
-  return [
+  const pool: BrainTeaserEntry[] = [
     { question: `What is ${a} + ${b} × ${c}?`, answer: String(a + b * c), subjects: ["math"] },
     { question: `What comes next: ${seqStart}, ${seqStart + 2}, ${seqStart + 4}, ${seqStart + 6}?`, answer: String(seqStart + 8) },
     { question: `What comes next: ${d}, ${d * 2}, ${d * 3}, ${d * 4}?`, answer: String(d * 5) },
-    { question: `A farmer has 17 sheep; all but 9 run away. How many left?`, answer: "9" },
-    { question: `If 3 cats catch 3 mice in 3 minutes, how many cats for 100 mice?`, answer: "3 cats" },
+    { question: `A farmer has ${17 + offset} sheep; all but ${9 + offset} run away. How many left?`, answer: String(9 + offset) },
+    { question: `If ${2 + offset} cats catch ${2 + offset} mice in ${3 + offset} minutes, how many cats for 100 mice?`, answer: `${2 + offset} cats` },
     { question: `What is half of ${a * 2}?`, answer: String(a) },
+    { question: `What is ${a + b} − ${b}?`, answer: String(a), subjects: ["math"] },
+    { question: `Double ${c} and add ${a}. What is the result?`, answer: String(c * 2 + a), subjects: ["math"] },
   ];
+  return seededShuffle(pool, seed + 89).slice(0, 6);
 }
 
 const CURRICULUM_TEASERS: BrainTeaserEntry[] = [
@@ -271,29 +329,53 @@ export async function pickBrainTeasers(
   const hasCurriculum = !isGenericBrainFlexSubject(ctx?.subject);
   const exclude = new Set((ctx?.excludeBrainTeasers ?? []).map(normQuestion));
 
-  let pool: BrainTeaserEntry[];
-  if (!hasCurriculum || subject === "general") {
-    pool = [...CURRICULUM_TEASERS, ...buildDynamicTeasers(ctx)];
-  } else if (subject === "math") {
-    pool = [...CURRICULUM_TEASERS.filter((t) => t.subjects?.includes("math")), ...buildDynamicTeasers(ctx)];
-  } else {
-    pool = [
-      ...CURRICULUM_TEASERS.filter((t) => t.subjects?.includes(subject)),
-      ...buildDynamicTeasers(ctx).filter((t) => t.subjects?.includes(subject)),
-    ];
-    if (pool.length < count) {
-      pool = CURRICULUM_TEASERS.filter((t) => t.subjects?.includes(subject));
-    }
+  let picked: Array<{ question: string; answer: string }> = [];
+  if (ctx?.knowledge && ctx.knowledge.vocabulary.length >= 2) {
+    picked = buildTeasersFromKnowledge(ctx.knowledge, count, exclude);
   }
 
-  pool = pool.filter((t) => !exclude.has(normQuestion(t.question)));
-  let picked = shuffle(pool).slice(0, count);
+  if (picked.length < count) {
+    let pool: BrainTeaserEntry[];
+    if (!hasCurriculum || subject === "general") {
+      pool = [...buildDynamicTeasers(ctx), ...CURRICULUM_TEASERS];
+    } else if (subject === "math") {
+      pool = [
+        ...buildDynamicTeasers(ctx),
+        ...CURRICULUM_TEASERS.filter((t) => t.subjects?.includes("math")),
+      ];
+    } else {
+      pool = [
+        ...buildDynamicTeasers(ctx),
+        ...CURRICULUM_TEASERS.filter((t) => t.subjects?.includes(subject)),
+      ];
+    }
+
+    pool = pool.filter((t) => !exclude.has(normQuestion(t.question)));
+    const offset =
+      pool.length > count ? ((ctx?.generationAttempt ?? 0) + (ctx?.generationSeed ?? 0)) % pool.length : 0;
+    if (offset > 0) {
+      pool = [...pool.slice(offset), ...pool.slice(0, offset)];
+    }
+    const fromPool = seededShuffle(pool, (ctx?.generationSeed ?? 0) + (ctx?.generationAttempt ?? 0) * 307).slice(
+      0,
+      count - picked.length,
+    );
+    picked = [...picked, ...fromPool];
+  }
 
   if (picked.length < count && hasCurriculum) {
     const { expandBrainTeasersWithAi } = await import("./brainflexAiExpand");
-    const extra = await expandBrainTeasersWithAi(ctx ?? {}, count - picked.length);
-    picked = [...picked, ...extra];
+    const extra = await expandBrainTeasersWithAi(ctx ?? {}, count - picked.length + 2);
+    for (const t of extra) {
+      if (picked.length >= count) break;
+      const q = normQuestion(t.question);
+      if (!q || exclude.has(q)) continue;
+      if (picked.some((p) => normQuestion(p.question) === q)) continue;
+      picked.push(t);
+    }
   }
 
-  return picked.slice(0, count).map(({ question, answer }) => ({ question, answer }));
+  return seededShuffle(picked, (ctx?.generationSeed ?? 0) + 1303)
+    .slice(0, count)
+    .map(({ question, answer }) => ({ question, answer }));
 }

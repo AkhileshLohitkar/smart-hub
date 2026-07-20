@@ -3,7 +3,7 @@
  * Generation-only — strict subject isolation, no cross-subject mixing.
  */
 
-import { getWordSearchClue } from "@shared/wordSearchClues";
+import { WORD_SEARCH_CLUES } from "@shared/wordSearchClues";
 import {
   lookupTopicClue,
   isGenericClueText,
@@ -78,6 +78,10 @@ export function resolveSubjectCategory(subject?: string): SubjectCategory {
 export const NEUTRAL_WORD_BANK: string[] = [
   "PUZZLE", "BRAIN", "FOCUS", "SMART", "THINK", "LEARN", "MEMORY", "PATTERN",
   "LOGIC", "QUIZ", "MIND", "SKILL", "STUDY", "SOLVE", "BRIGHT", "TRAIN",
+  "BOOK", "READ", "WRITE", "WORD", "CLASS", "GRADE", "SCIENCE", "ENGLISH",
+  "NUMBER", "SHAPES", "COLOUR", "MUSIC", "SPORT", "NATURE", "PLANET", "ENERGY",
+  "TEACHER", "STUDENT", "SCHOOL", "FRIEND", "FAMILY", "GARDEN", "ANIMAL", "PLANTS",
+  "WATER", "EARTH", "GREEN", "LIGHT", "SOUND", "FORCE", "MOTION", "HEALTH",
 ];
 
 const SCIENCE_TOPICS: TopicEntry[] = [
@@ -447,8 +451,10 @@ function resolveClueForWord(word: string, topic: TopicEntry): string | null {
   if (topic.clues[key]) return topic.clues[key]!;
   const topicSpecific = lookupTopicClue(key);
   if (topicSpecific) return topicSpecific;
-  const wsClue = getWordSearchClue(key);
-  if (wsClue !== "Find this hidden word in the grid.") return wsClue;
+  // Curated map only — do not use programmatic getWordSearchClue fallback here
+  // (that would loosen word-selection validation for every curriculum token).
+  const curated = WORD_SEARCH_CLUES[key];
+  if (curated && !isGenericClueText(curated)) return curated;
   return null;
 }
 

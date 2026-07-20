@@ -144,34 +144,152 @@ export const WORD_SEARCH_CLUES: Record<string, string> = {
   DATA: "Information stored or processed by a computer.",
   INPUT: "Information sent into a computer.",
   OUTPUT: "Information produced by a computer.",
+
+  // Everyday school / young learners
+  PENCIL: "A writing tool commonly used for drawing and writing.",
+  HINDI: "One of the major languages spoken in India.",
+  SHAPES: "Forms such as circles, squares, and triangles.",
+  CIRCLE: "A round shape with no corners.",
+  SQUARE: "A shape with four equal sides.",
+  TRIANGLE: "A shape with three sides.",
+  BOOK: "Pages bound together that you read to learn.",
+  PAPER: "A thin sheet used for writing or drawing.",
+  CLASS: "A group of students learning together.",
+  GRADE: "A school level or year of study.",
+  FRIEND: "A person you like and enjoy spending time with.",
+  FAMILY: "A group of related people who live and care together.",
+  INDIA: "A country in South Asia with many languages and cultures.",
+  ENGLISH: "A language widely taught and spoken in schools.",
+  COUNT: "To find how many there are by numbering.",
+  COLOUR: "What makes things look red, blue, green, and more.",
+  COLOR: "What makes things look red, blue, green, and more.",
+  DRAW: "To make a picture using a pencil or crayon.",
+  MUSIC: "Sounds arranged in a pleasing or rhythmic way.",
+  SPORT: "A physical game or activity people play.",
+  HEALTH: "How well your body and mind are feeling.",
+  SAFETY: "Staying careful so that nobody gets hurt.",
+  GARDEN: "An outdoor place where plants and flowers grow.",
+  EARTH: "The planet where we live.",
+  TREE: "A tall plant with a wooden trunk and leaves.",
+  LEAF: "A flat green part that grows on a plant.",
 };
 
+const PLACEHOLDER_CLUE_PATTERNS = [
+  /^find this hidden word/i,
+  /^search this word/i,
+  /^hidden word\.?$/i,
+  /^guess the word/i,
+  /^find the word/i,
+  /^look for this word/i,
+  /^meaning not available/i,
+];
+
+export function isPlaceholderWordSearchClue(clue: string | null | undefined): boolean {
+  const c = String(clue || "").trim();
+  if (!c) return true;
+  return PLACEHOLDER_CLUE_PATTERNS.some((re) => re.test(c));
+}
+
+/** Programmatic educational clue when no curated definition exists. */
+export function buildEducationalWordSearchClue(word: string): string {
+  const key = String(word || "")
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "");
+  if (!key) return "A useful school vocabulary word.";
+
+  const pretty = key.charAt(0) + key.slice(1).toLowerCase();
+  if (WORD_SEARCH_CLUES[key] && !isPlaceholderWordSearchClue(WORD_SEARCH_CLUES[key])) {
+    return WORD_SEARCH_CLUES[key]!;
+  }
+
+  if (key.endsWith("ING") && key.length > 4) {
+    return `An action or process of ${pretty}.`;
+  }
+  if (key.endsWith("TION") || key.endsWith("SION")) {
+    return `A school concept or process called ${pretty}.`;
+  }
+  if (key.endsWith("LOGY")) {
+    return `A field of study related to ${pretty}.`;
+  }
+  if (key.endsWith("NESS")) {
+    return `A quality or feeling known as ${pretty}.`;
+  }
+  if (key.length <= 4) {
+    return `A short school word meaning something about ${pretty}.`;
+  }
+  return `A school vocabulary word related to ${pretty}.`;
+}
+
+/**
+ * Always returns one meaningful educational clue.
+ * Never returns "Find this hidden word in the grid." or similar placeholders.
+ */
 export function getWordSearchClue(word: string): string {
   const key = String(word || "").toUpperCase().trim();
-  return WORD_SEARCH_CLUES[key] ?? "Find this hidden word in the grid.";
+  const known = WORD_SEARCH_CLUES[key];
+  if (known && !isPlaceholderWordSearchClue(known)) return known;
+  return buildEducationalWordSearchClue(key);
 }
 
 export function getWordSearchCluesForWords(words: string[]): string[] {
   return words.map((w) => getWordSearchClue(w));
 }
 
-/** Resolve clue sentences from stored Word Search section data. */
+/**
+ * Resolve one meaningful clue per word.
+ * Always returns the same length as `words` when words are present.
+ * Never returns placeholder text like "Find this hidden word in the grid."
+ */
 export function resolveWordSearchCluesFromData(data: {
   clues?: string[];
   wordsDetailed?: Array<{ word?: string; meaning?: string }>;
   words?: string[];
 } | null | undefined): string[] {
   if (!data) return [];
-  if (Array.isArray(data.clues) && data.clues.length > 0) {
-    return data.clues.map((c) => String(c).trim()).filter(Boolean);
+
+  const words = Array.isArray(data.words)
+    ? data.words.map((w) => String(w ?? "").trim()).filter(Boolean)
+    : [];
+
+  const pickUseful = (raw: string | undefined | null): string | null => {
+    const t = String(raw || "").trim();
+    if (!t || isPlaceholderWordSearchClue(t)) return null;
+    return t;
+  };
+
+  if (words.length > 0) {
+    const existingClues = Array.isArray(data.clues) ? data.clues : [];
+    const detailed = Array.isArray(data.wordsDetailed) ? data.wordsDetailed : [];
+    return words.map((word, i) => {
+      const u = word.toUpperCase();
+      const fromClue = pickUseful(existingClues[i] != null ? String(existingClues[i]) : "");
+      const fromDetailEntry = detailed.find((d) => String(d?.word || "").toUpperCase() === u);
+      const fromDetail =
+        pickUseful(fromDetailEntry?.meaning) || pickUseful(detailed[i]?.meaning);
+      return fromClue || fromDetail || getWordSearchClue(word);
+    });
   }
+
+  if (Array.isArray(data.clues) && data.clues.length > 0) {
+    return data.clues
+      .map((c) => {
+        const t = String(c).trim();
+        return isPlaceholderWordSearchClue(t) ? null : t;
+      })
+      .filter((c): c is string => Boolean(c));
+  }
+
   if (Array.isArray(data.wordsDetailed) && data.wordsDetailed.length > 0) {
     return data.wordsDetailed
-      .map((entry) => String(entry?.meaning ?? "").trim())
-      .filter(Boolean);
+      .map((entry) => {
+        const meaning = String(entry?.meaning ?? "").trim();
+        const word = String(entry?.word ?? "").trim();
+        if (meaning && !isPlaceholderWordSearchClue(meaning)) return meaning;
+        if (word) return getWordSearchClue(word);
+        return null;
+      })
+      .filter((c): c is string => Boolean(c));
   }
-  if (Array.isArray(data.words) && data.words.length > 0) {
-    return getWordSearchCluesForWords(data.words.map((w) => String(w)));
-  }
+
   return [];
 }

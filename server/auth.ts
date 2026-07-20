@@ -430,7 +430,7 @@ export async function setupAuth(app: Express) {
         if (!emailResult.ok) {
           if (process.env.NODE_ENV !== "production") {
             return res.status(502).json({
-              message: emailResult.error,
+              message: emailResult.error, 
               devOtpLogged: emailResult.devOtpLogged,
               hint:
                 "To send OTP to any email, verify qikworksheet.in in Resend and set RESEND_FROM_EMAIL=Qik Worksheets <hi@qikworksheet.in>. Until then, onboarding@resend.dev only works for Resend test inboxes.",

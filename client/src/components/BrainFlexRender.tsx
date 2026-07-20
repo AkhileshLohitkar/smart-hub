@@ -434,16 +434,36 @@ export function BrainFlexRender({
               )}
 
               {type === "word_search" && d && (
-                <div className="space-y-2 pl-1">
+                <div className="space-y-3 pl-1">
+                  <p className="text-xs text-black leading-relaxed">
+                    Find words hidden in the puzzle using the vocabulary clues below. Words may appear
+                    horizontally or vertically.
+                  </p>
+
                   {Array.isArray(d?.grid) ? renderWordSearchGrid(d.grid) : null}
+
                   {(() => {
                     const clues = resolveWordSearchCluesFromData(d as Record<string, unknown>);
+                    // Only show a clue list when it adds educational value beyond the word list itself
+                    // and the clue is not a copy of the same word names only.
                     if (clues.length === 0) return null;
+                    const wordSet = new Set(
+                      (Array.isArray((d as any)?.words) ? ((d as any).words as unknown[]) : [])
+                        .map((w) => String(w ?? "").trim().toUpperCase())
+                        .filter(Boolean),
+                    );
+                    const usefulClues = clues.filter((c) => {
+                      const t = String(c || "").trim();
+                      if (!t || t === "Meaning not available") return false;
+                      if (wordSet.has(t.toUpperCase())) return false;
+                      return true;
+                    });
+                    if (usefulClues.length === 0) return null;
                     return (
                       <div className="font-sans text-xs text-black space-y-1.5">
-                        <p className="font-semibold">Find the hidden words using clues:</p>
+                        <p className="font-semibold">Vocabulary / clues:</p>
                         <ol className="list-decimal list-inside space-y-1 leading-relaxed">
-                          {clues.map((clue, i) => (
+                          {usefulClues.map((clue, i) => (
                             <li key={i}>{clue}</li>
                           ))}
                         </ol>

@@ -31,11 +31,25 @@ import {
 import { hasAnswerKeyInContent, countAnswerKeyEntries } from "@shared/answerKey";
 import { getAnswerKeyPath } from "@shared/answerKeyUrl";
 import { logAnswerKeySaved } from "./utils/answerKeyLog";
+import { resolveBrainFlexNotesEnrichment } from "./utils/brainflexMyNotes";
+import {
+  resolveBrainFlexKnowledge,
+  knowledgeWordPool,
+} from "./utils/brainflexKnowledge";
+import {
+  buildBrainFlexSignature,
+  isBrainFlexTooSimilar,
+  makeGenerationSeed,
+  pickDifficultyHint,
+  type BrainFlexSignature,
+} from "./utils/brainflexUniqueness";
 
 const BRAIN_FLEX_HISTORY_WORKSHEETS = 20;
+const BRAIN_FLEX_MAX_GENERATION_ATTEMPTS = 12;
 
 // Best-effort de-duplication across recent generations per user (memory only).
 const recentBrainFlexHashesByUser = new Map<number, string[]>();
+const recentBrainFlexSignaturesByUser = new Map<number, BrainFlexSignature[]>();
 const recentBrainFlexWordsByUser = new Map<number, string[]>();
 const recentBrainFlexRiddlesByUser = new Map<number, string[]>();
 const recentBrainFlexTeasersByUser = new Map<number, string[]>();
@@ -59,10 +73,17 @@ function recordBrainFlexGeneration(
   userId: number,
   content: Awaited<ReturnType<typeof brainFlexContentFromSelection>>,
 ) {
-  const hash = crypto.createHash("sha256").update(JSON.stringify(content)).digest("hex");
+  const signature = buildBrainFlexSignature(content);
   const recent = recentBrainFlexHashesByUser.get(userId) ?? [];
-  recent.unshift(hash);
+  recent.unshift(signature.hash);
   recentBrainFlexHashesByUser.set(userId, recent.slice(0, BRAIN_FLEX_HISTORY_WORKSHEETS));
+
+  const recentSigs = recentBrainFlexSignaturesByUser.get(userId) ?? [];
+  recentSigs.unshift(signature);
+  recentBrainFlexSignaturesByUser.set(
+    userId,
+    recentSigs.slice(0, BRAIN_FLEX_HISTORY_WORKSHEETS),
+  );
 
   const words = extractBrainFlexUsedWords(content);
   const recentWords = recentBrainFlexWordsByUser.get(userId) ?? [];
@@ -136,7 +157,85 @@ function sendOpenAiConfigError(res: Response): void {
   });
 }
 
-function buildBrainFlexResponse(
+async function enrichBrainFlexContext(userId: number | undefined, ctx: BrainFlexContext) {
+  if (userId == null) return;
+  try {
+    const notes = await resolveBrainFlexNotesEnrichment(userId, ctx);
+    if (notes.notesContext) {
+      ctx.notesContext = notes.notesContext;
+      ctx.notesVocab = notes.notesVocab;
+    }
+    ctx.knowledge = await resolveBrainFlexKnowledge(ctx, notes);
+    if (ctx.knowledge && ctx.knowledge.vocabulary.length > 0) {
+      ctx.notesVocab = knowledgeWordPool(ctx.knowledge);
+    }
+  } catch (err) {
+    console.warn("[BrainFlex] My Notes / Knowledge enrich skipped:", err);
+  }
+}
+
+async function generateUniqueBrainFlexContent(
+  puzzleTypeIds: string[],
+  baseCtx: BrainFlexContext,
+  userId?: number,
+) {
+  const recentSignatures =
+    userId != null ? (recentBrainFlexSignaturesByUser.get(userId) ?? []) : [];
+  let best: Awaited<ReturnType<typeof brainFlexContentFromSelection>> | undefined;
+  let bestOverlap = Number.POSITIVE_INFINITY;
+
+  for (let attempt = 0; attempt < BRAIN_FLEX_MAX_GENERATION_ATTEMPTS; attempt++) {
+    const ctx: BrainFlexContext = {
+      ...baseCtx,
+      generationSeed: makeGenerationSeed(),
+      generationAttempt: attempt,
+      difficultyHint: pickDifficultyHint(makeGenerationSeed() + attempt),
+      excludeWords: [
+        ...(userId != null ? (recentBrainFlexWordsByUser.get(userId) ?? []) : []),
+        ...(baseCtx.excludeWords ?? []),
+      ],
+      excludeRiddles: [
+        ...(userId != null ? (recentBrainFlexRiddlesByUser.get(userId) ?? []) : []),
+        ...(baseCtx.excludeRiddles ?? []),
+      ],
+      excludeBrainTeasers: [
+        ...(userId != null ? (recentBrainFlexTeasersByUser.get(userId) ?? []) : []),
+        ...(baseCtx.excludeBrainTeasers ?? []),
+      ],
+    };
+
+    if (userId != null) {
+      await enrichBrainFlexContext(userId, ctx);
+    }
+
+    const next = await brainFlexContentFromSelection(puzzleTypeIds, ctx);
+    if (!isBrainFlexTooSimilar(next, recentSignatures)) {
+      return next;
+    }
+
+    const sig = buildBrainFlexSignature(next);
+    baseCtx.excludeWords = [...(baseCtx.excludeWords ?? []), ...sig.words];
+    baseCtx.excludeRiddles = [...(baseCtx.excludeRiddles ?? []), ...sig.riddles];
+    baseCtx.excludeBrainTeasers = [...(baseCtx.excludeBrainTeasers ?? []), ...sig.teasers];
+
+    const overlap =
+      recentSignatures.length > 0
+        ? Math.max(
+            sig.words.filter((w) => recentSignatures[0]!.words.includes(w)).length / Math.max(sig.words.length, 1),
+            sig.riddles.filter((r) => recentSignatures[0]!.riddles.includes(r)).length /
+              Math.max(sig.riddles.length, 1),
+          )
+        : 1;
+    if (overlap < bestOverlap) {
+      best = next;
+      bestOverlap = overlap;
+    }
+  }
+
+  return best ?? (await brainFlexContentFromSelection(puzzleTypeIds, baseCtx));
+}
+
+async function buildBrainFlexResponse(
   body: {
     className: string;
     board?: string;
@@ -148,11 +247,15 @@ function buildBrainFlexResponse(
   userId?: number,
 ) {
   const ctx = makeBrainFlexContext(body, userId);
-  return brainFlexContentFromSelection(body.puzzleTypeIds, ctx).then((content) => ({
+  const content = await generateUniqueBrainFlexContent(body.puzzleTypeIds, ctx, userId);
+  if (userId != null) {
+    recordBrainFlexGeneration(userId, content);
+  }
+  return {
     ...content,
     grade: body.className,
     difficulty: body.difficulty,
-  }));
+  };
 }
 
 const statePublisherMap: Record<string, string> = {
@@ -794,8 +897,6 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
       console.log("[brain-flex/save] request body:", body);
 
       const content = await buildBrainFlexResponse(body, userId);
-      recordBrainFlexGeneration(userId, content);
-      console.log("Generated Brain-Flex sections:", content.sections);
       console.log("[brain-flex/save] full content:", content);
 
       // Create a real worksheet row so the worksheet page can render it
@@ -880,30 +981,9 @@ ${input.board.startsWith("State Board -") ? `14. CRITICAL: This is a ${input.boa
       }
       const { className, board, subject, chapter, puzzleTypeIds, difficulty } = body;
 
-      let content: Awaited<ReturnType<typeof brainFlexContentFromSelection>> | undefined;
       const ctx = makeBrainFlexContext({ board, className, subject, chapter }, userId);
-
-      // Regenerate if we accidentally repeat a recent generation for this user.
-      const maxAttempts = 10;
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        ctx.excludeWords = recentBrainFlexWordsByUser.get(userId) ?? [];
-        ctx.excludeRiddles = recentBrainFlexRiddlesByUser.get(userId) ?? [];
-        ctx.excludeBrainTeasers = recentBrainFlexTeasersByUser.get(userId) ?? [];
-        const next = await brainFlexContentFromSelection(puzzleTypeIds, ctx);
-
-        const hash = crypto.createHash("sha256").update(JSON.stringify(next)).digest("hex");
-        const recent = recentBrainFlexHashesByUser.get(userId) ?? [];
-        if (!recent.includes(hash)) {
-          recordBrainFlexGeneration(userId, next);
-          content = next;
-          break;
-        }
-      }
-
-      if (!content) {
-        content = await brainFlexContentFromSelection(puzzleTypeIds, ctx);
-        recordBrainFlexGeneration(userId, content);
-      }
+      const content = await generateUniqueBrainFlexContent(puzzleTypeIds, ctx, userId);
+      recordBrainFlexGeneration(userId, content);
 
       console.log("Generated Brain-Flex sections:", content.sections);
       console.log("BrainFlex Content:", content);

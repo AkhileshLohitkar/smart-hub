@@ -173,6 +173,12 @@ export function isGenericClueText(clue: string): boolean {
     c.startsWith("a history term related to") ||
     c.startsWith("a geography term related to") ||
     c.startsWith("a computer term related to") ||
-    c === "find this hidden word in the grid."
+    c === "find this hidden word in the grid." ||
+    c.startsWith("find this hidden word") ||
+    c.startsWith("search this word") ||
+    c === "hidden word" ||
+    c === "guess the word" ||
+    c === "meaning not available" ||
+    /^a term from the student'?s notes/i.test(c)
   );
 }

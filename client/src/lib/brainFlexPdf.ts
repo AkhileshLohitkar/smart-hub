@@ -246,11 +246,32 @@ export async function downloadBrainFlexPdf(
     yRef.y += gridPx + 4;
   };
 
-  const drawWordSearch = (wsGrid: string[][], clues: string[]) => {
+  const drawWordSearch = (wsGrid: string[][], words: string[], clues: string[]) => {
     const sz = Array.isArray(wsGrid) ? wsGrid.length : 0;
     const cell = 6.5;
     const gridW = sz * cell;
     const x = marginX;
+    const wordList = (words || []).map((w) => String(w ?? "").trim()).filter(Boolean);
+    const wordSet = new Set(wordList.map((w) => w.toUpperCase()));
+    const usefulClues = (clues || []).filter((c) => {
+      const t = String(c || "").trim();
+      if (!t || t === "Meaning not available") return false;
+      if (wordSet.has(t.toUpperCase())) return false;
+      return true;
+    });
+
+    ensureSpace(yRef, 12);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(50);
+    const instr = doc.splitTextToSize(
+      T(
+        "Find words hidden in the puzzle using the vocabulary clues below. Words may appear horizontally or vertically.",
+      ),
+      contentWidth,
+    );
+    doc.text(instr, marginX, yRef.y);
+    yRef.y += instr.length * 4 + 3;
 
     ensureSpace(yRef, gridW + 28);
 
@@ -276,21 +297,23 @@ export async function downloadBrainFlexPdf(
 
     yRef.y += gridW + 6;
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(80);
-    doc.text(T("Find the hidden words using clues:"), marginX, yRef.y);
-    yRef.y += 5;
+    if (usefulClues.length > 0) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(80);
+      doc.text(T("Vocabulary / clues:"), marginX, yRef.y);
+      yRef.y += 5;
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9.5);
-    doc.setTextColor(30);
-    clues.forEach((clue, i) => {
-      const lines = doc.splitTextToSize(T(`${i + 1}. ${clue}`), contentWidth);
-      ensureSpace(yRef, lines.length * 4 + 2);
-      doc.text(lines, marginX, yRef.y);
-      yRef.y += lines.length * 4 + 1.5;
-    });
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(30);
+      usefulClues.forEach((clue, i) => {
+        const lines = doc.splitTextToSize(T(`${i + 1}. ${clue}`), contentWidth);
+        ensureSpace(yRef, lines.length * 4 + 2);
+        doc.text(lines, marginX, yRef.y);
+        yRef.y += lines.length * 4 + 1.5;
+      });
+    }
 
     yRef.y += 4;
     doc.setTextColor(0);
@@ -430,7 +453,10 @@ export async function downloadBrainFlexPdf(
 
     if (type === "word_search") {
       const clues = resolveWordSearchCluesFromData(p);
-      drawWordSearch(p?.grid ?? [], clues);
+      const words = Array.isArray(p?.words)
+        ? (p.words as unknown[]).map((w) => String(w ?? "").trim()).filter(Boolean)
+        : [];
+      drawWordSearch(p?.grid ?? [], words, clues);
       yRef.y += 2;
       continue;
     }

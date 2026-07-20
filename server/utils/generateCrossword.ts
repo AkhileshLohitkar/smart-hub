@@ -183,16 +183,25 @@ export function generateCrosswordEngine(args: {
     return { grid: [["#"]], placements: [], across: [], down: [], clueNumbersGrid: [[null]], wordBank: [], answers: [] };
   }
 
+  const shuffleCandidates = (list: string[]) => {
+    const copy = [...list];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j]!, copy[i]!];
+    }
+    return copy.sort((a, b) => b.length - a.length || a.localeCompare(b));
+  };
+
   for (let retry = 0; retry < maxRetries; retry++) {
     const cells = new Map<CellKey, Cell>();
     const placements: Array<{ word: string; row: number; col: number; direction: CrosswordDirection }> = [];
 
-    // Prefer longer words first for better intersections.
-    const words = [...candidates].sort((a, b) => b.length - a.length);
-
-    const first = words[0]!;
-    placeWordOnCells(cells, first, 0, 0, "across");
-    placements.push({ word: first, row: 0, col: 0, direction: "across" });
+    const words = shuffleCandidates(candidates);
+    const firstCandidates = words.slice(0, Math.min(4, words.length));
+    const first = firstCandidates[Math.floor(Math.random() * firstCandidates.length)] ?? words[0]!;
+    const firstDir: CrosswordDirection = Math.random() < 0.5 ? "across" : "down";
+    placeWordOnCells(cells, first, 0, 0, firstDir);
+    placements.push({ word: first, row: 0, col: 0, direction: firstDir });
 
     let placedCount = 1;
 
@@ -301,9 +310,151 @@ export function generateCrosswordEngine(args: {
         answers,
       };
     }
+
+    // Soft accept: at least 2 intersecting words (across + down) if maxPlaced is tiny.
+    if (wordBank.length >= 2 && across.length > 0 && down.length > 0) {
+      return {
+        grid,
+        placements: placementsWithNumbers,
+        across,
+        down,
+        clueNumbersGrid,
+        wordBank,
+        answers,
+      };
+    }
   }
 
-  // Final fallback: return minimal valid structure.
-  return { grid: [["#"]], placements: [], across: [], down: [], clueNumbersGrid: [[null]], wordBank: [], answers: [] };
+  // Guaranteed educational fallback — never return an empty "#" grid.
+  return buildGuaranteedCrosswordFallback(candidates, args.clueForWord, maxPlaced);
+}
+
+function buildGuaranteedCrosswordFallback(
+  candidates: string[],
+  clueForWord: (word: string) => string,
+  maxPlaced: number,
+): GenerateCrosswordResult {
+  const words = [...new Set(candidates.map(normalizeWord))].filter((w) => w.length >= 3);
+  if (words.length === 0) {
+    words.push("LEARN", "BRAIN", "FOCUS", "SOLVE", "GRID");
+  }
+
+  // Prefer a longer seed for easier intersections.
+  const sorted = [...words].sort((a, b) => b.length - a.length);
+  const seed = sorted[0]!;
+
+  let bestAcross = seed;
+  let bestDown: string | null = null;
+  let bestSeedIdx = 0;
+  let bestOtherIdx = 0;
+
+  outer: for (const acrossWord of sorted) {
+    for (let si = 0; si < acrossWord.length; si++) {
+      const letter = acrossWord[si]!;
+      for (const downWord of sorted) {
+        if (downWord === acrossWord) continue;
+        const di = downWord.indexOf(letter);
+        if (di < 0) continue;
+        bestAcross = acrossWord;
+        bestDown = downWord;
+        bestSeedIdx = si;
+        bestOtherIdx = di;
+        break outer;
+      }
+    }
+  }
+
+  if (!bestDown) {
+    // Force a simple 2-word cross using shared letter "A" or first letters.
+    bestAcross = "LEARN";
+    bestDown = "LOGIC";
+    bestSeedIdx = 0; // L
+    bestOtherIdx = 0; // L
+  }
+
+  const cells = new Map<CellKey, Cell>();
+  placeWordOnCells(cells, bestAcross, 0, 0, "across");
+  const downRow = 0 - bestOtherIdx;
+  const downCol = bestSeedIdx;
+  placeWordOnCells(cells, bestDown, downRow, downCol, "down");
+
+  const placements: Array<{ word: string; row: number; col: number; direction: CrosswordDirection }> = [
+    { word: bestAcross, row: 0, col: 0, direction: "across" },
+    { word: bestDown, row: downRow, col: downCol, direction: "down" },
+  ];
+
+  // Add more intersecting words when possible.
+  const used = new Set([bestAcross, bestDown]);
+  for (const word of sorted) {
+    if (placements.length >= Math.max(2, Math.min(5, maxPlaced))) break;
+    if (used.has(word)) continue;
+    const letterIndex = buildLetterIndexFromCells(cells);
+    let best:
+      | { row: number; col: number; dir: CrosswordDirection; intersections: number }
+      | null = null;
+    for (let wi = 0; wi < word.length; wi++) {
+      const ch = word[wi]!;
+      const hits = letterIndex.get(ch) ?? [];
+      for (const hit of hits) {
+        const acrossRow = hit.r;
+        const acrossCol = hit.c - wi;
+        const a = canPlaceWordOnCells(cells, word, acrossRow, acrossCol, "across", { requireIntersection: true });
+        if (a.ok && (!best || a.intersections > best.intersections)) {
+          best = { row: acrossRow, col: acrossCol, dir: "across", intersections: a.intersections };
+        }
+        const downR = hit.r - wi;
+        const downC = hit.c;
+        const d = canPlaceWordOnCells(cells, word, downR, downC, "down", { requireIntersection: true });
+        if (d.ok && (!best || d.intersections > best.intersections)) {
+          best = { row: downR, col: downC, dir: "down", intersections: d.intersections };
+        }
+      }
+    }
+    if (best) {
+      placeWordOnCells(cells, word, best.row, best.col, best.dir);
+      placements.push({ word, row: best.row, col: best.col, direction: best.dir });
+      used.add(word);
+    }
+  }
+
+  const { grid, offsetRow: offR, offsetCol: offC } = toDerivedGrid(cells);
+  const { clueNumbersGrid } = computeClueNumbersFromCells(cells);
+  const answers: CrosswordAnswer[] = placements.map((p) => ({
+    word: p.word,
+    row: p.row - offR,
+    col: p.col - offC,
+    direction: p.direction,
+  }));
+  const wordBank = Array.from(new Set(placements.map((p) => p.word))).sort((a, b) => a.localeCompare(b));
+  const placementsWithNumbers: CrosswordPlacement[] = placements.map((p) => {
+    const number = clueNumbersGrid[p.row - offR]?.[p.col - offC] ?? 0;
+    return {
+      word: p.word,
+      clue: clueForWord(p.word),
+      row: p.row - offR,
+      col: p.col - offC,
+      direction: p.direction,
+      number: typeof number === "number" ? number : 0,
+    };
+  });
+  const across: CrosswordClueEntry[] = [];
+  const down: CrosswordClueEntry[] = [];
+  for (const pl of placementsWithNumbers) {
+    const entry = { number: pl.number, clue: pl.clue, answer: pl.word };
+    if (pl.direction === "across") across.push(entry);
+    else down.push(entry);
+  }
+  across.sort((a, b) => a.number - b.number);
+  down.sort((a, b) => a.number - b.number);
+
+  return {
+    grid,
+    placements: placementsWithNumbers,
+    across,
+    down,
+    clueNumbersGrid,
+    wordBank,
+    answers,
+  };
 }
 
