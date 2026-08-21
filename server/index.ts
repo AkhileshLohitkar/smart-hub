@@ -1,13 +1,16 @@
 import "./loadEnv";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { registerWhatsAppWorksheetRoute } from "./routes/whatsappWorksheetRoute";
 import { serveStatic } from "./static";
 import { setupAuth } from "./auth";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { getFreeWorksheetLimit } from "./config/pricing";
-
+import path from "node:path";
 const app = express();
+app.use(express.json())
+app.use ("/generated-pdfs", express.static(path.join(process.cwd(), "generated-pdfs")));
 const httpServer = createServer(app);
 
 function listenHttp(server: Server, startPort: number): Promise<number> {
@@ -101,7 +104,7 @@ app.use((req, res, next) => {
 (async () => {
   await setupAuth(app);
   await registerRoutes(httpServer, app);
-
+  await registerWhatsAppWorksheetRoute(app);
   void storage.syncFreePaymentWorksheetLimits(getFreeWorksheetLimit()).then((count) => {
     if (count > 0) {
       log(`synced ${count} free plan payment record(s) to worksheet limit ${getFreeWorksheetLimit()}`);
