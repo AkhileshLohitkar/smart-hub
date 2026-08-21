@@ -20,6 +20,7 @@ export interface DailyActivity {
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByMobileNumber(mobileNumber: string): Promise<User | undefined>;
   getUserByGoogleId(googleId: string): Promise<User | undefined>;
   getUserByFacebookId(facebookId: string): Promise<User | undefined>;
   getUserByStripeCustomerId(stripeCustomerId: string): Promise<User | undefined>;
@@ -89,6 +90,14 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db.select().from(users).where(eq(users.email, email));
     return user;
   }
+
+  async getUserByMobileNumber(mobileNumber: string): Promise<User | undefined> {
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.mobileNumber, mobileNumber));
+  return user;
+}
 
   async getUserByEmailInsensitive(email: string): Promise<User | undefined> {
     const normalized = email.trim().toLowerCase();
