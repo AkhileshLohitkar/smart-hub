@@ -488,8 +488,7 @@ export function WorksheetForm() {
                       <SelectItem value="Grade 7">Grade 7</SelectItem>
                       <SelectItem value="Grade 8">Grade 8</SelectItem>
                       <SelectItem value="Grade 9">Grade 9</SelectItem>
-                      <SelectItem value="Grade 10">Grade 10</SelectItem>
-                      <SelectItem value="High School">High School</SelectItem>
+                      <SelectItem value="Grade 10">Grade 10</SelectItem>                  
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -506,7 +505,39 @@ export function WorksheetForm() {
                   <FormLabel className="text-sm font-semibold text-foreground/80 flex items-center gap-2">
                     <LayoutList className="w-4 h-4 text-primary/70" /> Curriculum Board
                   </FormLabel>
-                  {isOtherBoardMode ? (
+
+                  <Select
+                    value={boardCategory}
+                    onValueChange={(val) => {
+                      const category = val as BoardCategory;
+
+                      setBoardCategory(category);
+
+                      if (category === "Other") {
+                        field.onChange("Other");
+                      } else {
+                        setOtherBoardInput("");
+                        field.onChange(category);
+                      }
+                    }}
+                  >
+                    <FormControl>
+                      <SelectTrigger
+                        className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl"
+                        data-testid="select-board"
+                      >
+                        <SelectValue placeholder="Select Board" />
+                      </SelectTrigger>
+                    </FormControl>
+
+                    <SelectContent>
+                      <SelectItem value="CBSE">CBSE</SelectItem>
+                      <SelectItem value="State Board">State Board</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  {isOtherBoardMode && (
                     <FormControl>
                       <Input
                         placeholder="Enter Board Name"
@@ -516,37 +547,13 @@ export function WorksheetForm() {
                           setOtherBoardInput(value);
                           field.onChange(value.trim() || "Other");
                         }}
-                        className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl px-4"
+                        className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl px-4 mt-2"
                         data-testid="input-inline-board-name"
                         autoFocus
                       />
                     </FormControl>
-                  ) : (
-                    <Select
-                      value={boardCategory}
-                      onValueChange={(val) => {
-                        const category = val as BoardCategory;
-                        setBoardCategory(category);
-                        setOtherBoardInput("");
-                        if (category === "Other") {
-                          field.onChange("Other");
-                        } else {
-                          field.onChange(category);
-                        }
-                      }}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="h-12 bg-background border-2 focus:ring-primary/20 rounded-xl" data-testid="select-board">
-                          <SelectValue placeholder="Select Board" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="CBSE">CBSE</SelectItem>
-                        <SelectItem value="State Board">State Board</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
                   )}
+
                   <FormMessage />
                 </FormItem>
               )}

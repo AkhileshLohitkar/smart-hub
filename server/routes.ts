@@ -9,9 +9,13 @@ import { registerQuestionPaperRoutes } from "./questionPaperRoutes";
 import { openai } from "./openaiClient";
 import { buildPricingApiPayload } from "@shared/pricing";
 import {
+  // existing imports
+} from "./config/pricing";
+import {
   pricingPlans,
   resolvePaidPlanKeyFromPlanName,
   inferBillingCycleFromPlanName,
+  getPlanAmountInr,
   type BillingCycle,
   type PlanType,
 } from "./config/pricing";
@@ -316,20 +320,27 @@ export async function registerRoutes(
 
     const { planName, planType, billingCycle } = parsed.data;
 
-    const resolveAmount = (cycle: BillingCycle | undefined): number | null => {
-      const isYearly = cycle === "yearly";
-      if (
-        planName === pricingPlans.free_2.name ||
-        planName.trim().toLowerCase() === "free"
-      ) {
-        return 0;
-      }
-      const paidKey = resolvePaidPlanKeyFromPlanName(planName);
-      if (!paidKey) return null;
-      return isYearly
-        ? (pricingPlans[paidKey].yearlyDiscountedPrice ?? pricingPlans[paidKey].yearlyPrice)
-        : pricingPlans[paidKey].monthlyPrice;
-    };
+    
+const resolveAmount = (cycle: BillingCycle | undefined): number | null => {
+  const isYearly = cycle === "yearly";
+
+  if (
+    planName === pricingPlans.free_2.name ||
+    planName.trim().toLowerCase() === "free"
+  ) {
+    return 0;
+  }
+
+  const paidKey = resolvePaidPlanKeyFromPlanName(planName);
+
+  if (!paidKey) return null;
+
+  return getPlanAmountInr(
+    paidKey,
+    isYearly ? "yearly" : "monthly"
+  );
+};
+
 
     const inferredCycle = billingCycle ?? inferBillingCycleFromPlanName(planName) ?? undefined;
     const amount = resolveAmount(inferredCycle);

@@ -532,7 +532,10 @@ export function resolveCurriculumWordPool(input: CurriculumResolveInput): string
     return [...NEUTRAL_WORD_BANK];
   }
 
-  const topics = SUBJECT_TOPIC_MAP[subjectCat];
+  const topics =
+  subjectCat === "general"
+    ? []
+    : SUBJECT_TOPIC_MAP[subjectCat];
   if (!topics) return [...NEUTRAL_WORD_BANK];
 
   // Specific topic within subject — strict topic-only vocabulary

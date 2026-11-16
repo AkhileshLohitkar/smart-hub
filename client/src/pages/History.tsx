@@ -16,7 +16,7 @@ type ActiveTab = "worksheet" | "test_prep" | "brain_flex" | "question_paper";
 
 const GRADE_SORT_ORDER = [
   "Nursery", "KG 1", "KG 2", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5",
-  "Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "High School",
+  "Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10",
 ];
 
 function gradeSortKey(grade: string) {
@@ -137,7 +137,7 @@ function WorksheetCard({ ws }: { ws: Worksheet }) {
 }
 
 function SubjectGroup({ subject, items, nested }: { subject: string; items: Worksheet[]; nested?: boolean }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   return (
     <div className={nested ? "mb-2" : "mb-4"}>
       <button
@@ -176,7 +176,7 @@ function groupByGradeThenSubject(items: Worksheet[]) {
 }
 
 function GradeGroup({ grade, bySubject }: { grade: string; bySubject: Record<string, Worksheet[]> }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const totalCount = Object.values(bySubject).reduce((sum, arr) => sum + arr.length, 0);
   const subjects = Object.keys(bySubject).sort();
 

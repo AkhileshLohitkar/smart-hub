@@ -47,7 +47,9 @@ function questionOverlapRatio(a: string[], b: string[]): number {
 
 /** Stable signature for comparing generations (ignores filler letters / minor layout noise). */
 export function buildBrainFlexSignature(content: BrainFlexContentLike): BrainFlexSignature {
-  const words = extractBrainFlexUsedWords(content);
+  const words = extractBrainFlexUsedWords({
+  sections: content.sections,
+});
   const riddles = extractBrainFlexUsedRiddles(content);
   const teasers = extractBrainFlexUsedBrainTeasers(content);
   const sudokuSolutions: string[] = [];
