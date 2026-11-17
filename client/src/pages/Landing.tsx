@@ -68,7 +68,7 @@ export default function Landing() {
               className="truncate text-sm sm:text-base md:text-lg lg:text-xl font-display font-bold text-gradient-primary min-w-0"
               data-testid="logo-text"
             >
-              Qik Worksheets
+              Qik Worksheet
             </span>
           </Link>
           <div className="flex items-center gap-1 sm:gap-2 md:gap-3 shrink-0">

@@ -11,7 +11,7 @@ import { isGenericBrainFlexSubject } from "./brainflexContext";
 import { seededShuffle } from "./brainflexUniqueness";
 const MAX_CHARS = 3500;
 const MAX_VOCAB = 40;
-
+const MAX_NOTES = 20;
 function norm(s: string | undefined | null): string {
   return String(s || "")
     .toLowerCase()

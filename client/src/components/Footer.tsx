@@ -27,7 +27,7 @@ export default function Footer() {
                 className="w-20 h-20 rounded-md object-contain drop-shadow-md logo-vibrant"
               />
               <span className="font-display font-bold text-gradient-primary">
-                Qik Worksheets
+                Qik Worksheet
               </span>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">

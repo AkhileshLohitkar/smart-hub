@@ -48,7 +48,7 @@ export function AppNav({ user, onLogout, activeLinks, showPlanBadge = true }: Ap
               data-testid="logo-image"
             />
             <span className="text-sm sm:text-base font-display font-bold text-gradient-primary whitespace-nowrap" data-testid="logo-text">
-              Qik Worksheets
+              Qik Worksheet
             </span>
           </Link>
         </div>

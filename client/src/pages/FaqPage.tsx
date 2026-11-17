@@ -15,7 +15,7 @@ export default function FaqPage() {
               alt="Qik Worksheet"
               className="w-20 h-20 rounded-lg object-contain drop-shadow-md logo-vibrant"
             />
-            <span className="text-lg font-display font-bold text-gradient-primary">Qik Worksheets</span>
+            <span className="text-lg font-display font-bold text-gradient-primary">Qik Worksheet</span>
           </Link>
           <ThemeToggle />
         </div>

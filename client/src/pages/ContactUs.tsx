@@ -11,7 +11,7 @@ export default function ContactUs() {
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <img src={logoImage} alt="Qik Worksheet" className="w-20 h-20 rounded-lg object-contain drop-shadow-md logo-vibrant" />
-            <span className="text-lg font-display font-bold text-gradient-primary">Qik Worksheets</span>
+            <span className="text-lg font-display font-bold text-gradient-primary">Qik Worksheet</span>
           </Link>
           <ThemeToggle />
         </div>

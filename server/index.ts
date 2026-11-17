@@ -9,7 +9,6 @@ import { storage } from "./storage";
 import { getFreeWorksheetLimit } from "./config/pricing";
 import path from "node:path";
 const app = express();
-app.use(express.json())
 app.use ("/generated-pdfs", express.static(path.join(process.cwd(), "generated-pdfs")));
 const httpServer = createServer(app);
 
